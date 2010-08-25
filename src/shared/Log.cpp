@@ -61,8 +61,11 @@ enum LogType
 const int LogType_count = int(LogError) +1;
 
 Log::Log() :
-    raLogfile(NULL), logfile(NULL), gmLogfile(NULL), charLogfile(NULL),
-    dberLogfile(NULL), m_colored(false), m_includeTime(false), m_gmlog_per_account(false)
+    raLogfile(NULL), logfile(NULL), gmLogfile(NULL), charLogfile(NULL), chatLogfile(NULL),
+    dberLogfile(NULL), m_colored(false), m_includeTime(false), m_gmlog_per_account(false),
+    m_chatlog_per_type(false), m_chatlog_logsay(false), m_chatlog_logemote(false),
+    m_chatlog_logyell(false), m_chatlog_logwhisper(false), m_chatlog_logparty(false),
+    m_chatlog_logguild(false), m_chatlog_lograid(false), m_chatlog_logbg(false)
 {
     Initialize();
 }
@@ -256,6 +259,46 @@ void Log::Initialize()
         }
     }
 
+    m_chatlog_per_type = sConfig.GetBoolDefault("ChatLogPerType", false);
+    if(!m_chatlog_per_type)
+        chatLogfile = openLogFile("ChatLogFile", "ChatLogTimestamp", "a");
+    else
+    {
+        // Chat log settings for per type case
+        m_chatlog_filename_format = sConfig.GetStringDefault("ChatLogFile", "");
+        if(!m_chatlog_filename_format.empty())
+        {
+            bool m_chatlog_timestamp = sConfig.GetBoolDefault("ChatLogTimestamp", false);
+
+            size_t dot_pos = m_chatlog_filename_format.find_last_of(".");
+            if(dot_pos != m_chatlog_filename_format.npos)
+            {
+                if(m_chatlog_timestamp)
+                    m_chatlog_filename_format.insert(dot_pos, m_logsTimestamp);
+
+                m_chatlog_filename_format.insert(dot_pos, "_%s");
+            }
+            else
+            {
+                m_chatlog_filename_format += "_%s";
+
+                if(m_chatlog_timestamp)
+                    m_chatlog_filename_format += m_logsTimestamp;
+            }
+
+            m_chatlog_filename_format = m_logsDir + m_chatlog_filename_format;
+        }
+    }
+    m_chatlog_logsay        = sConfig.GetBoolDefault("ChatLogSay",      false);
+    m_chatlog_logemote      = sConfig.GetBoolDefault("ChatLogEmote",    false);
+    m_chatlog_logyell       = sConfig.GetBoolDefault("ChatLogYell",     false);
+    m_chatlog_logwhisper    = sConfig.GetBoolDefault("ChatLogWhisper",  false);
+    m_chatlog_logparty      = sConfig.GetBoolDefault("ChatLogParty",    false);
+    m_chatlog_logguild      = sConfig.GetBoolDefault("ChatLogGuild",    false);
+    m_chatlog_lograid       = sConfig.GetBoolDefault("ChatLogRaid",     false);
+    m_chatlog_logbg         = sConfig.GetBoolDefault("ChatLogBG",       false);
+    m_chatlog_logchannel    = sConfig.GetBoolDefault("ChatLogChannel",  false);
+
     charLogfile = openLogFile("CharLogFile","CharLogTimestamp","a");
     dberLogfile = openLogFile("DBErrorLogFile",NULL,"a");
     raLogfile = openLogFile("RaLogFile",NULL,"a");
@@ -302,6 +345,56 @@ FILE* Log::openGmlogPerAccount(uint32 account)
 
     char namebuf[MANGOS_PATH_MAX];
     snprintf(namebuf,MANGOS_PATH_MAX,m_gmlog_filename_format.c_str(),account);
+    return fopen(namebuf, "a");
+}
+
+FILE* Log::openChatLogPerType(uint32 chattype)
+{
+    if(m_chatlog_filename_format.empty())
+        return NULL;
+
+    std::string chatstr = "";
+
+    switch(chattype)
+    {
+        case 1:                                     // CHAT_MSG_SAY
+            chatstr = "SAY";
+            break;
+        case 10:                                    // CHAT_MSG_EMOTE
+            chatstr = "EMOTE";
+            break;
+        case 6:                                     // CHAT_MSG_YELL
+            chatstr = "YELL";
+            break;
+        case 7:                                     // CHAT_MSG_WHISPER
+            chatstr = "WHISPER";
+            break;
+        case 2:                                     // CHAT_MSG_PARTY
+        case 51:                                    // CHAT_MSG_PARTY_LEADER
+            chatstr = "PARTY";
+            break;
+        case 4:                                     // CHAT_MSG_GUILD
+        case 5:                                     // CHAT_MSG_OFFICER
+            chatstr = "GUILD";
+            break;
+        case 3:                                     // CHAT_MSG_RAID
+        case 39:                                    // CHAT_MSG_RAID_LEADER
+        case 40:                                    // CHAT_MSG_RAID_WARNING
+            chatstr = "RAID";
+            break;
+        case 44:                                    // CHAT_MSG_BATTLEGROUND
+        case 45:                                    // CHAT_MSG_BATTLEGROUND_LEADER
+            chatstr = "BG";
+            break;
+        case 17:                                    // CHAT_MSG_CHANNEL
+            chatstr = "CHANNEL";
+            break;
+        default:
+            break;
+    }
+
+    char namebuf[MANGOS_PATH_MAX];
+    snprintf(namebuf, MANGOS_PATH_MAX, m_chatlog_filename_format.c_str(), chatstr.c_str());
     return fopen(namebuf, "a");
 }
 
@@ -715,6 +808,114 @@ void Log::outCommand( uint32 account, const char * str, ... )
         fprintf(gmLogfile, "\n" );
         va_end(ap);
         fflush(gmLogfile);
+    }
+
+    fflush(stdout);
+}
+
+void Log::outChat( uint32 chattype, const char * str, ... )
+{
+    if( !str )
+        return;
+
+    switch(chattype)
+    {
+        case 1:                                     // CHAT_MSG_SAY
+            if(!m_chatlog_logsay)
+                return;
+            break;
+        case 10:                                    // CHAT_MSG_EMOTE
+            if(!m_chatlog_logemote)
+                return;
+            break;
+        case 6:                                     // CHAT_MSG_YELL
+            if(!m_chatlog_logyell)
+                return;
+            break;
+        case 7:                                     // CHAT_MSG_WHISPER
+            if(!m_chatlog_logwhisper)
+                return;
+            break;
+        case 2:                                     // CHAT_MSG_PARTY
+        case 51:                                    // CHAT_MSG_PARTY_LEADER
+            if(!m_chatlog_logparty)
+                return;
+            break;
+        case 4:                                     // CHAT_MSG_GUILD
+        case 5:                                     // CHAT_MSG_OFFICER
+            if(!m_chatlog_logguild)
+                return;
+            break;
+        case 3:                                     // CHAT_MSG_RAID
+        case 39:                                    // CHAT_MSG_RAID_LEADER
+        case 40:                                    // CHAT_MSG_RAID_WARNING
+            if(!m_chatlog_lograid)
+                return;
+            break;
+        case 44:                                    // CHAT_MSG_BATTLEGROUND
+        case 45:                                    // CHAT_MSG_BATTLEGROUND_LEADER
+            if(!m_chatlog_logbg)
+                return;
+            break;
+        case 17:                                    // CHAT_MSG_CHANNEL
+            if(!m_chatlog_logchannel)
+                return;
+            break;
+        default:
+            break;
+    }
+
+    if( m_logLevel > 1 )
+    {
+        if(m_colored)
+            SetColor(true,m_colors[LogDetails]);
+
+        if(m_includeTime)
+            outTime();
+
+        va_list ap;
+        va_start(ap, str);
+        vutf8printf(stdout, str, &ap);
+        va_end(ap);
+
+        if(m_colored)
+            ResetColor(true);
+
+        printf( "\n" );
+    }
+    if(logfile && m_logFileLevel > 1)
+    {
+        va_list ap;
+        outTimestamp(logfile);
+        va_start(ap, str);
+        vfprintf(logfile, str, ap);
+        fprintf(logfile, "\n" );
+        va_end(ap);
+        fflush(logfile);
+    }
+
+    if (m_chatlog_per_type)
+    {
+        if (FILE* per_file = openChatLogPerType (chattype))
+        {
+            va_list ap;
+            outTimestamp(per_file);
+            va_start(ap, str);
+            vfprintf(per_file, str, ap);
+            fprintf(per_file, "\n" );
+            va_end(ap);
+            fclose(per_file);
+        }
+    }
+    else if (chatLogfile)
+    {
+        va_list ap;
+        outTimestamp(chatLogfile);
+        va_start(ap, str);
+        vfprintf(chatLogfile, str, ap);
+        fprintf(chatLogfile, "\n" );
+        va_end(ap);
+        fflush(chatLogfile);
     }
 
     fflush(stdout);

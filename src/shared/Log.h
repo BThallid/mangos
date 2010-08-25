@@ -103,6 +103,10 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
             fclose(charLogfile);
         charLogfile = NULL;
 
+        if (chatLogfile != NULL)
+            fclose(chatLogfile);
+        chatLogfile = NULL;
+
         if( dberLogfile != NULL )
             fclose(dberLogfile);
         dberLogfile = NULL;
@@ -138,6 +142,8 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
                                                             // any log level
         void outErrorDb( const char * str, ... )     ATTR_PRINTF(2,3);
                                                             // any log level
+        void outChat( uint32 chattype, const char * str, ... )        ATTR_PRINTF(2,3);
+                                                            // any log level
         void outChar( const char * str, ... )        ATTR_PRINTF(2,3);
                                                             // any log level
         void outWorldPacketDump( uint32 socket, uint32 opcode, char const* opcodeName, ByteBuffer const* packet, bool incoming );
@@ -162,11 +168,13 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
     private:
         FILE* openLogFile(char const* configFileName,char const* configTimeStampFlag, char const* mode);
         FILE* openGmlogPerAccount(uint32 account);
+        FILE* openChatLogPerType(uint32 chattype);
 
         FILE* raLogfile;
         FILE* logfile;
         FILE* gmLogfile;
         FILE* charLogfile;
+        FILE* chatLogfile;
         FILE* dberLogfile;
         FILE* worldLogfile;
 
@@ -184,6 +192,19 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
 
         // char log control
         bool m_charLog_Dump;
+
+        // chat log control
+        bool m_chatlog_per_type;
+        bool m_chatlog_logsay;
+        bool m_chatlog_logemote;
+        bool m_chatlog_logyell;
+        bool m_chatlog_logwhisper;
+        bool m_chatlog_logparty;
+        bool m_chatlog_logguild;
+        bool m_chatlog_lograid;
+        bool m_chatlog_logbg;
+        bool m_chatlog_logchannel;
+        std::string m_chatlog_filename_format;
 
         // gm log control
         bool m_gmlog_per_account;

@@ -319,6 +319,35 @@ CleanCharacterDB = 1
 #                     in form Logname_#ID_YYYY-MM-DD_HH-MM-SS.Ext
 #                     or form Logname_#ID.Ext
 #
+#    ChatLogFile
+#        Chat Log file of chat text
+#        Default: "" (Disable)
+#
+#    ChatLogTimestamp
+#        Chat Logfile with timestamp of server start in name
+#        Default: 0 - no timestamp in name
+#                 1 - add timestamp in name in form Logname_YYYY-MM-DD_HH-MM-SS.Ext for Logname.Ext
+#
+#    ChatLogPerType
+#        Chat Logfiles with chat type (Note: logs not created if ChatLogFile not set)
+#        Default: 0 - add chat log data to single log file
+#                 1 - add chat log data to chat type specific log files with name
+#                     in form Logname_TYPE_YYYY-MM-DD_HH-MM-SS.Ext
+#                     or form Logname_TYPE.Ext
+#
+#    ChatLogSay
+#    ChatLogEmote
+#    ChatLogYell
+#    ChatLogWhisper
+#    ChatLogParty
+#    ChatLogGuild
+#    ChatLogRaid
+#    ChatLogBG
+#    ChatLogChannel
+#        Chat of type is logged
+#        Default: 0 - log disabled for chat type
+#                 1 - log enabled for chat type
+#
 #    RaLogFile
 #        Log file of RA commands
 #        Default: "Ra.log"
@@ -363,6 +392,18 @@ CharLogDump = 0
 GmLogFile = ""
 GmLogTimestamp = 0
 GmLogPerAccount = 0
+ChatLogFile = ""
+ChatLogTimestamp = 0
+ChatLogPerType = 0
+ChatLogSay = 0
+ChatLogEmote = 0
+ChatLogYell = 0
+ChatLogWhisper = 0
+ChatLogParty = 0
+ChatLogGuild = 0
+ChatLogRaid = 0
+ChatLogBG = 0
+ChatLogChannel = 0
 RaLogFile = ""
 LogColors = ""
 
