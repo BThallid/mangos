@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,17 +26,14 @@
 
 void WorldSession::HandleDuelAcceptedOpcode(WorldPacket& recvPacket)
 {
-    uint64 guid;
-    Player *pl;
-    Player *plTarget;
+    ObjectGuid guid;
+    recvPacket >> guid;
 
     if(!GetPlayer()->duel)                                  // ignore accept from duel-sender
         return;
 
-    recvPacket >> guid;
-
-    pl       = GetPlayer();
-    plTarget = pl->duel->opponent;
+    Player *pl       = GetPlayer();
+    Player *plTarget = pl->duel->opponent;
 
     if(pl == pl->duel->initiator || !plTarget || pl == plTarget || pl->duel->startTime != 0 || plTarget->duel->startTime != 0)
         return;
@@ -75,7 +72,7 @@ void WorldSession::HandleDuelCancelledOpcode(WorldPacket& recvPacket)
 
     // player either discarded the duel using the "discard button"
     // or used "/forfeit" before countdown reached 0
-    uint64 guid;
+    ObjectGuid guid;
     recvPacket >> guid;
 
     GetPlayer()->DuelComplete(DUEL_INTERUPTED);

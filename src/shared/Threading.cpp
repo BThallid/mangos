@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2009-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -101,12 +101,12 @@ int ThreadPriority::getPriority(Priority p) const
 # define THREADFLAG (THR_NEW_LWP | THR_JOINABLE)
 #endif
 
-Thread::Thread() : m_task(0), m_iThreadId(0), m_hThreadHandle(0)
+Thread::Thread() : m_iThreadId(0), m_hThreadHandle(0), m_task(0)
 {
 
 }
 
-Thread::Thread(Runnable* instance) : m_task(instance), m_iThreadId(0), m_hThreadHandle(0)
+Thread::Thread(Runnable* instance) : m_iThreadId(0), m_hThreadHandle(0), m_task(instance)
 {
     // register reference to m_task to prevent it deeltion until destructor
     if (m_task)

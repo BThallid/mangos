@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,75 +19,81 @@
 #include "SQLStorage.h"
 #include "SQLStorageImpl.h"
 
-#ifdef DO_POSTGRESQL
-extern DatabasePostgre  WorldDatabase;
-#else
-extern DatabaseMysql  WorldDatabase;
-#endif
-
-const char CreatureInfosrcfmt[]="iiiiiiiiiisssiiiiiiiiiiifffiffiifiiiiiiiiiiffiiiiiiiiiiiiiiiiiiisiiffliiiiiiiliiis";
-const char CreatureInfodstfmt[]="iiiiiiiiiisssiiiiiiiiiiifffiffiifiiiiiiiiiiffiiiiiiiiiiiiiiiiiiisiiffliiiiiiiliiii";
-const char CreatureDataAddonInfofmt[]="iiiiiis";
-const char CreatureModelfmt[]="iffbii";
-const char CreatureInfoAddonInfofmt[]="iiiiiis";
-const char EquipmentInfofmt[]="iiii";
-const char GameObjectInfosrcfmt[]="iiissssiifiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiis";
-const char GameObjectInfodstfmt[]="iiissssiifiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii";
-const char ItemPrototypesrcfmt[]="iiiisiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiffiffiiiiiiiiiifiiifiiiiiifiiiiiifiiiiiifiiiiiifiiiisiiiiiiiiiiiiiiiiiiiiiiiiifiiisiiiii";
-const char ItemPrototypedstfmt[]="iiiisiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiffiffiiiiiiiiiifiiifiiiiiifiiiiiifiiiiiifiiiiiifiiiisiiiiiiiiiiiiiiiiiiiiiiiiifiiiiiiiii";
-const char PageTextfmt[]="isi";
-const char InstanceTemplatesrcfmt[]="iiiis";
-const char InstanceTemplatedstfmt[]="iiiii";
-
-SQLStorage sCreatureStorage(CreatureInfosrcfmt, CreatureInfodstfmt, "entry","creature_template");
-SQLStorage sCreatureDataAddonStorage(CreatureDataAddonInfofmt,"guid","creature_addon");
-SQLStorage sCreatureModelStorage(CreatureModelfmt,"modelid","creature_model_info");
-SQLStorage sCreatureInfoAddonStorage(CreatureInfoAddonInfofmt,"entry","creature_template_addon");
-SQLStorage sEquipmentStorage(EquipmentInfofmt,"entry","creature_equip_template");
-SQLStorage sGOStorage(GameObjectInfosrcfmt, GameObjectInfodstfmt, "entry","gameobject_template");
-SQLStorage sItemStorage(ItemPrototypesrcfmt, ItemPrototypedstfmt, "entry","item_template");
-SQLStorage sPageTextStore(PageTextfmt,"entry","page_text");
-SQLStorage sInstanceTemplate(InstanceTemplatesrcfmt, InstanceTemplatedstfmt, "map","instance_template");
-
 void SQLStorage::EraseEntry(uint32 id)
 {
-    uint32 offset=0;
-    for(uint32 x=0;x<iNumFields;x++)
-        if (dst_format[x]==FT_STRING)
+    uint32 offset = 0;
+    for(uint32 x = 0; x < iNumFields; ++x)
+    {
+        switch(dst_format[x])
         {
-            if(pIndex[id])
-                delete [] *(char**)((char*)(pIndex[id])+offset);
+            case FT_LOGIC:
+                offset += sizeof(bool);   break;
+            case FT_BYTE:
+                offset += sizeof(char);   break;
+            case FT_INT:
+                offset += sizeof(uint32); break;
+            case FT_FLOAT:
+                offset += sizeof(float);  break;
+            case FT_STRING:
+            {
+                if(pIndex[id])
+                    delete [] *(char**)((char*)(pIndex[id])+offset);
 
-            offset += sizeof(char*);
+                offset += sizeof(char*);
+                break;
+            }
+            case FT_NA:
+            case FT_NA_BYTE:
+                break;
+            case FT_IND:
+            case FT_SORT:
+                assert(false && "SQL storage not have sort field types");
+                break;
+            default:
+                assert(false && "unknown format character");
+                break;
         }
-        else if (dst_format[x]==FT_LOGIC)
-            offset += sizeof(bool);
-        else if (dst_format[x]==FT_BYTE)
-            offset += sizeof(char);
-        else
-            offset += 4;
+    }
 
-    reinterpret_cast<void*&>(pIndex[id]) = NULL;
+    pIndex[id] = NULL;
 }
 
 void SQLStorage::Free ()
 {
-    uint32 offset=0;
-    for(uint32 x=0;x<iNumFields;x++)
-        if (dst_format[x]==FT_STRING)
+    uint32 offset = 0;
+    for(uint32 x = 0; x < iNumFields; ++x)
+    {
+        switch(dst_format[x])
         {
-            for(uint32 y=0;y<MaxEntry;y++)
-                if(pIndex[y])
-                    delete [] *(char**)((char*)(pIndex[y])+offset);
+            case FT_LOGIC:
+                offset += sizeof(bool);   break;
+            case FT_BYTE:
+                offset += sizeof(char);   break;
+            case FT_INT:
+                offset += sizeof(uint32); break;
+            case FT_FLOAT:
+                offset += sizeof(float);  break;
+            case FT_STRING:
+            {
+                for(uint32 y = 0; y < MaxEntry; ++y)
+                    if(pIndex[y])
+                        delete [] *(char**)((char*)(pIndex[y])+offset);
 
-            offset += sizeof(char*);
+                offset += sizeof(char*);
+                break;
+            }
+            case FT_NA:
+            case FT_NA_BYTE:
+                break;
+            case FT_IND:
+            case FT_SORT:
+                assert(false && "SQL storage not have sort field types");
+                break;
+            default:
+                assert(false && "unknown format character");
+                break;
         }
-        else if (dst_format[x]==FT_LOGIC)
-            offset += sizeof(bool);
-        else if (dst_format[x]==FT_BYTE)
-            offset += sizeof(char);
-        else
-            offset += 4;
+    }
 
     delete [] pIndex;
     delete [] data;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -119,6 +119,13 @@ struct MANGOS_DLL_DECL CoordPair
             y_coord += val;
         else
             y_coord = LIMIT - 1;
+    }
+
+    CoordPair& normalize()
+    {
+        x_coord = std::min(x_coord, LIMIT-1);
+        y_coord = std::min(y_coord, LIMIT-1);
+        return *this;
     }
 
     uint32 x_coord;

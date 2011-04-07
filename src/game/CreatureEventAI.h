@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,11 +56,12 @@ enum EventAI_Type
     EVENT_T_QUEST_COMPLETE          = 20,                   //
     EVENT_T_REACHED_HOME            = 21,                   // NONE
     EVENT_T_RECEIVE_EMOTE           = 22,                   // EmoteId, Condition, CondValue1, CondValue2
-    EVENT_T_BUFFED                  = 23,                   // Param1 = SpellID, Param2 = Number of time stacked, Param3/4 Repeat Min/Max
-    EVENT_T_TARGET_BUFFED           = 24,                   // Param1 = SpellID, Param2 = Number of time stacked, Param3/4 Repeat Min/Max
+    EVENT_T_AURA                    = 23,                   // Param1 = SpellID, Param2 = Number of time stacked, Param3/4 Repeat Min/Max
+    EVENT_T_TARGET_AURA             = 24,                   // Param1 = SpellID, Param2 = Number of time stacked, Param3/4 Repeat Min/Max
     EVENT_T_SUMMONED_JUST_DIED      = 25,                   // CreatureId, RepeatMin, RepeatMax
     EVENT_T_SUMMONED_JUST_DESPAWN   = 26,                   // CreatureId, RepeatMin, RepeatMax
-    EVENT_T_MISSING_BUFF            = 27,                   // Param1 = SpellID, Param2 = Number of time stacked expected, Param3/4 Repeat Min/Max
+    EVENT_T_MISSING_AURA            = 27,                   // Param1 = SpellID, Param2 = Number of time stacked expected, Param3/4 Repeat Min/Max
+    EVENT_T_TARGET_MISSING_AURA     = 28,                   // Param1 = SpellID, Param2 = Number of time stacked expected, Param3/4 Repeat Min/Max
 
     EVENT_T_END,
 };
@@ -108,7 +109,7 @@ enum EventAI_ActionType
     ACTION_T_ZONE_COMBAT_PULSE          = 38,               // No Params
     ACTION_T_CALL_FOR_HELP              = 39,               // Radius
     ACTION_T_SET_SHEATH                 = 40,               // Sheath (0-passive,1-melee,2-ranged)
-    ACTION_T_FORCE_DESPAWN              = 41,               // No Params
+    ACTION_T_FORCE_DESPAWN              = 41,               // Delay (0-instant despawn)
     ACTION_T_SET_INVINCIBILITY_HP_LEVEL = 42,               // MinHpValue, format(0-flat,1-percent from max health)
     ACTION_T_MOUNT_TO_ENTRY_OR_MODEL    = 43,               // Creature_template entry(param1) OR ModelId (param2) (or 0 for both to unmount)
     ACTION_T_END,
@@ -186,7 +187,8 @@ struct CreatureEventAI_Action
         // ACTION_T_SET_FACTION                             = 2
         struct
         {
-            uint32 factionId;                               // faction or 0 for default)
+            uint32 factionId;                               // faction id or 0 to restore default faction
+            uint32 factionFlags;                            // flags will restore default faction at evade and/or respawn
         } set_faction;
         // ACTION_T_MORPH_TO_ENTRY_OR_MODEL                 = 3
         struct
@@ -518,9 +520,10 @@ struct CreatureEventAI_Event
             uint32 conditionValue1;
             uint32 conditionValue2;
         } receive_emote;
-        // EVENT_T_BUFFED                                   = 23
-        // EVENT_T_TARGET_BUFFED                            = 24
-        // EVENT_T_MISSING_BUFF                             = 27
+        // EVENT_T_AURA                                     = 23
+        // EVENT_T_TARGET_AURA                              = 24
+        // EVENT_T_MISSING_AURA                             = 27
+        // EVENT_T_TARGET_MISSING_AURA                      = 28
         struct
         {
             uint32 spellId;
@@ -606,7 +609,6 @@ class MANGOS_DLL_SPEC CreatureEventAI : public CreatureAI
         inline Unit* GetTargetByType(uint32 Target, Unit* pActionInvoker);
 
         void DoScriptText(int32 textEntry, WorldObject* pSource, Unit* target);
-        void DoMeleeAttackIfReady();
         bool CanCast(Unit* Target, SpellEntry const *Spell, bool Triggered);
 
         bool SpawnedEventConditionsCheck(CreatureEventAI_Event const& event);

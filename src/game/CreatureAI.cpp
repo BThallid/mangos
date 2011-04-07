@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "CreatureAI.h"
 #include "Creature.h"
 #include "DBCStores.h"
+#include "Spell.h"
 
 CreatureAI::~CreatureAI()
 {
@@ -46,7 +47,7 @@ CanCastResult CreatureAI::CanCastSpell(Unit* pTarget, const SpellEntry *pSpell, 
             return CAST_FAIL_STATE;
 
         // Check for power (also done by Spell::CheckCast())
-        if (m_creature->GetPower((Powers)pSpell->powerType) < pSpell->manaCost)
+        if (m_creature->GetPower((Powers)pSpell->powerType) < Spell::CalculatePowerCost(pSpell, m_creature))
             return CAST_FAIL_POWER;
     }
 
@@ -115,4 +116,24 @@ CanCastResult CreatureAI::DoCastSpellIfCan(Unit* pTarget, uint32 uiSpell, uint32
     }
     else
         return CAST_FAIL_IS_CASTING;
+}
+
+bool CreatureAI::DoMeleeAttackIfReady()
+{
+    // Check target
+    if (!m_creature->getVictim())
+        return false;
+
+    // Make sure our attack is ready before checking distance
+    if (!m_creature->isAttackReady())
+        return false;
+
+    // If we are within range melee the target
+    if (!m_creature->CanReachWithMeleeAttack(m_creature->getVictim()))
+        return false;
+
+    m_creature->AttackerStateUpdate(m_creature->getVictim());
+    m_creature->resetAttackTimer();
+
+    return true;
 }

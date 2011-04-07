@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ ConfusedMovementGenerator<T>::Initialize(T &unit)
     y = unit.GetPositionY();
     z = unit.GetPositionZ();
 
-    Map const* map = unit.GetBaseMap();
+    TerrainInfo const* map = unit.GetTerrain();
 
     i_nextMove = 1;
 
@@ -59,7 +59,7 @@ ConfusedMovementGenerator<T>::Initialize(T &unit)
             i_waypoints[idx][1] = idx > 0 ? i_waypoints[idx-1][1] : y;
         }
 
-        unit.UpdateGroundPositionZ(i_waypoints[idx][0],i_waypoints[idx][1],z);
+        unit.UpdateAllowedPositionZ(i_waypoints[idx][0],i_waypoints[idx][1],z);
         i_waypoints[idx][2] =  z;
     }
 
@@ -73,8 +73,8 @@ ConfusedMovementGenerator<Creature>::_InitSpecific(Creature &creature, bool &is_
 {
     creature.RemoveSplineFlag(SPLINEFLAG_WALKMODE);
 
-    is_water_ok = creature.canSwim();
-    is_land_ok  = creature.canWalk();
+    is_water_ok = creature.CanSwim();
+    is_land_ok  = creature.CanWalk();
 }
 
 template<>

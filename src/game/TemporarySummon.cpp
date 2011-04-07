@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
 
 #include "TemporarySummon.h"
 #include "Log.h"
-#include "ObjectAccessor.h"
 #include "CreatureAI.h"
 
 TemporarySummon::TemporarySummon( ObjectGuid summoner ) :
@@ -26,7 +25,7 @@ Creature(CREATURE_SUBTYPE_TEMPORARY_SUMMON), m_type(TEMPSUMMON_TIMED_OR_CORPSE_D
 {
 }
 
-void TemporarySummon::Update( uint32 diff )
+void TemporarySummon::Update( uint32 update_diff,  uint32 diff )
 {
     switch(m_type)
     {
@@ -34,26 +33,26 @@ void TemporarySummon::Update( uint32 diff )
             break;
         case TEMPSUMMON_TIMED_DESPAWN:
         {
-            if (m_timer <= diff)
+            if (m_timer <= update_diff)
             {
                 UnSummon();
                 return;
             }
 
-            m_timer -= diff;
+            m_timer -= update_diff;
             break;
         }
         case TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT:
         {
             if (!isInCombat())
             {
-                if (m_timer <= diff)
+                if (m_timer <= update_diff)
                 {
                     UnSummon();
                     return;
                 }
 
-                m_timer -= diff;
+                m_timer -= update_diff;
             }
             else if (m_timer != m_lifetime)
                 m_timer = m_lifetime;
@@ -63,22 +62,22 @@ void TemporarySummon::Update( uint32 diff )
 
         case TEMPSUMMON_CORPSE_TIMED_DESPAWN:
         {
-            if ( m_deathState == CORPSE)
+            if (IsCorpse())
             {
-                if (m_timer <= diff)
+                if (m_timer <= update_diff)
                 {
                     UnSummon();
                     return;
                 }
 
-                m_timer -= diff;
+                m_timer -= update_diff;
             }
             break;
         }
         case TEMPSUMMON_CORPSE_DESPAWN:
         {
             // if m_deathState is DEAD, CORPSE was skipped
-            if ( m_deathState == CORPSE || m_deathState == DEAD)
+            if (isDead())
             {
                 UnSummon();
                 return;
@@ -88,7 +87,7 @@ void TemporarySummon::Update( uint32 diff )
         }
         case TEMPSUMMON_DEAD_DESPAWN:
         {
-            if ( m_deathState == DEAD )
+            if (IsDespawned())
             {
                 UnSummon();
                 return;
@@ -98,7 +97,7 @@ void TemporarySummon::Update( uint32 diff )
         case TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN:
         {
             // if m_deathState is DEAD, CORPSE was skipped
-            if ( m_deathState == CORPSE || m_deathState == DEAD)
+            if (isDead())
             {
                 UnSummon();
                 return;
@@ -106,13 +105,13 @@ void TemporarySummon::Update( uint32 diff )
 
             if (!isInCombat())
             {
-                if (m_timer <= diff)
+                if (m_timer <= update_diff)
                 {
                     UnSummon();
                     return;
                 }
                 else
-                    m_timer -= diff;
+                    m_timer -= update_diff;
             }
             else if (m_timer != m_lifetime)
                 m_timer = m_lifetime;
@@ -121,7 +120,7 @@ void TemporarySummon::Update( uint32 diff )
         case TEMPSUMMON_TIMED_OR_DEAD_DESPAWN:
         {
             // if m_deathState is DEAD, CORPSE was skipped
-            if (m_deathState == DEAD)
+            if (IsDespawned())
             {
                 UnSummon();
                 return;
@@ -129,13 +128,13 @@ void TemporarySummon::Update( uint32 diff )
 
             if (!isInCombat() && isAlive() )
             {
-                if (m_timer <= diff)
+                if (m_timer <= update_diff)
                 {
                     UnSummon();
                     return;
                 }
                 else
-                    m_timer -= diff;
+                    m_timer -= update_diff;
             }
             else if (m_timer != m_lifetime)
                 m_timer = m_lifetime;
@@ -147,7 +146,7 @@ void TemporarySummon::Update( uint32 diff )
             break;
     }
 
-    Creature::Update( diff );
+    Creature::Update( update_diff, diff );
 }
 
 void TemporarySummon::Summon(TempSummonType type, uint32 lifetime)

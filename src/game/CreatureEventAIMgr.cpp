@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
-#include "Database/SQLStorage.h"
+#include "SQLStorages.h"
 #include "CreatureEventAI.h"
 #include "CreatureEventAIMgr.h"
 #include "ObjectMgr.h"
@@ -460,9 +460,10 @@ void CreatureEventAIMgr::LoadCreatureEventAI_Scripts()
                     break;
                 }
 
-                case EVENT_T_BUFFED:
-                case EVENT_T_TARGET_BUFFED:
-                case EVENT_T_MISSING_BUFF:
+                case EVENT_T_AURA:
+                case EVENT_T_TARGET_AURA:
+                case EVENT_T_MISSING_AURA:
+                case EVENT_T_TARGET_MISSING_AURA:
                 {
                     SpellEntry const* pSpell = sSpellStore.LookupEntry(temp.buffed.spellId);
                     if (!pSpell)
@@ -634,7 +635,7 @@ void CreatureEventAIMgr::LoadCreatureEventAI_Scripts()
                     case ACTION_T_QUEST_EVENT:
                         if (Quest const* qid = sObjectMgr.GetQuestTemplate(action.quest_event.questId))
                         {
-                            if (!qid->HasFlag(QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT))
+                            if (!qid->HasSpecialFlag(QUEST_SPECIAL_FLAG_EXPLORATION_OR_EVENT))
                                 sLog.outErrorDb("CreatureEventAI:  Event %u Action %u. SpecialFlags for quest entry %u does not include |2, Action will not have any effect.", i, j+1, action.quest_event.questId);
                         }
                         else
@@ -676,7 +677,7 @@ void CreatureEventAIMgr::LoadCreatureEventAI_Scripts()
                     case ACTION_T_QUEST_EVENT_ALL:
                         if (Quest const* qid = sObjectMgr.GetQuestTemplate(action.quest_event_all.questId))
                         {
-                            if (!qid->HasFlag(QUEST_MANGOS_FLAGS_EXPLORATION_OR_EVENT))
+                            if (!qid->HasSpecialFlag(QUEST_SPECIAL_FLAG_EXPLORATION_OR_EVENT))
                                 sLog.outErrorDb("CreatureEventAI:  Event %u Action %u. SpecialFlags for quest entry %u does not include |2, Action will not have any effect.", i, j+1, action.quest_event_all.questId);
                         }
                         else
@@ -789,7 +790,7 @@ void CreatureEventAIMgr::LoadCreatureEventAI_Scripts()
                     case ACTION_T_FLEE_FOR_ASSIST:          //No Params
                     case ACTION_T_DIE:                      //No Params
                     case ACTION_T_ZONE_COMBAT_PULSE:        //No Params
-                    case ACTION_T_FORCE_DESPAWN:            //No Params
+                    case ACTION_T_FORCE_DESPAWN:            //Delay
                     case ACTION_T_AUTO_ATTACK:              //AllowAttackState (0 = stop attack, anything else means continue attacking)
                     case ACTION_T_COMBAT_MOVEMENT:          //AllowCombatMovement (0 = stop combat based movement, anything else continue attacking)
                     case ACTION_T_RANGED_MOVEMENT:          //Distance, Angle

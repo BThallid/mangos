@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,10 +30,9 @@ enum PetType
     HUNTER_PET              = 1,
     GUARDIAN_PET            = 2,
     MINI_PET                = 3,
-    MAX_PET_TYPE            = 4
+    PROTECTOR_PET           = 4,                            // work as defensive guardian with mini pet suffix in name
+    MAX_PET_TYPE            = 5
 };
-
-extern char const* petTypeSuffix[MAX_PET_TYPE];
 
 #define MAX_PET_STABLES         4
 
@@ -44,7 +43,8 @@ enum PetSaveMode
     PET_SAVE_AS_CURRENT        =  0,                        // in current slot (with player)
     PET_SAVE_FIRST_STABLE_SLOT =  1,
     PET_SAVE_LAST_STABLE_SLOT  =  MAX_PET_STABLES,          // last in DB stable slot index (including), all higher have same meaning as PET_SAVE_NOT_IN_SLOT
-    PET_SAVE_NOT_IN_SLOT       =  100                       // for avoid conflict with stable size grow will use 100
+    PET_SAVE_NOT_IN_SLOT       =  100,                      // for avoid conflict with stable size grow will use 100
+    PET_SAVE_REAGENTS          =  101                       // PET_SAVE_NOT_IN_SLOT with reagents return
 };
 
 // There might be a lot more
@@ -129,7 +129,7 @@ typedef std::vector<uint32> AutoSpellList;
 #define ACTIVE_SPELLS_MAX           4
 
 #define PET_FOLLOW_DIST  1.0f
-#define PET_FOLLOW_ANGLE M_PI_F/2
+#define PET_FOLLOW_ANGLE (M_PI_F/2.0f)
 
 class Player;
 
@@ -149,15 +149,15 @@ class Pet : public Creature
 
         bool IsPermanentPetFor(Player* owner);              // pet have tab in character windows and set UNIT_FIELD_PETNUMBER
 
-        bool Create (uint32 guidlow, Map *map, uint32 phaseMask, uint32 Entry, uint32 pet_number);
+        bool Create (uint32 guidlow, CreatureCreatePos& cPos, uint32 Entry, uint32 pet_number);
         bool CreateBaseAtCreature(Creature* creature);
         bool LoadPetFromDB( Player* owner,uint32 petentry = 0,uint32 petnumber = 0, bool current = false );
         void SavePetToDB(PetSaveMode mode);
-        void Remove(PetSaveMode mode, bool returnreagent = false);
-        static void DeleteFromDB(uint32 guidlow);
+        void Unsummon(PetSaveMode mode, Unit* owner = NULL);
+        static void DeleteFromDB(uint32 guidlow, bool separate_transaction = true);
 
-        void setDeathState(DeathState s);                   // overwrite virtual Creature::setDeathState and Unit::setDeathState
-        void Update(uint32 diff);                           // overwrite virtual Creature::Update and Unit::Update
+        void SetDeathState(DeathState s);                   // overwrite virtual Creature::SetDeathState and Unit::SetDeathState
+        void Update(uint32 update_diff, uint32 diff);                           // overwrite virtual Creature::Update and Unit::Update
 
         uint8 GetPetAutoSpellSize() const { return m_autospells.size(); }
         uint32 GetPetAutoSpellOnPos(uint8 pos) const
@@ -260,7 +260,7 @@ class Pet : public Creature
     private:
         PetModeFlags m_petModeFlags;
 
-        void SaveToDB(uint32, uint8)                        // overwrited of Creature::SaveToDB     - don't must be called
+        void SaveToDB(uint32, uint8, uint32)                // overwrited of Creature::SaveToDB     - don't must be called
         {
             MANGOS_ASSERT(false);
         }

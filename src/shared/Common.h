@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,9 +62,6 @@
 #endif                                                      // __SHOW_STUPID_WARNINGS__
 #endif                                                      // __GNUC__
 
-// must be the first thing to include for it to work
-#include "MemoryLeaks.h"
-
 #include "Utilities/UnorderedMapSet.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,14 +94,19 @@
 #include <ace/Thread_Mutex.h>
 #include <ace/OS_NS_arpa_inet.h>
 
+// Old ACE versions (pre-ACE-5.5.4) not have this type (add for allow use at Unix side external old ACE versions)
+#if PLATFORM != PLATFORM_WINDOWS
+#  ifndef ACE_OFF_T
+typedef off_t ACE_OFF_T;
+#  endif
+#endif
+
 #if PLATFORM == PLATFORM_WINDOWS
-#  define FD_SETSIZE 4096
+#  if !defined (FD_SETSIZE)
+#    define FD_SETSIZE 4096
+#  endif
 #  include <ace/config-all.h>
-// XP winver - needed to compile with standard leak check in MemoryLeaks.h
-// uncomment later if needed
-//#define _WIN32_WINNT 0x0501
 #  include <ws2tcpip.h>
-//#undef WIN32_WINNT
 #else
 #  include <sys/types.h>
 #  include <sys/ioctl.h>

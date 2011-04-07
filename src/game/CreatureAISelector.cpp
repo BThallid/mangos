@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #include "NullCreatureAI.h"
 #include "Policies/SingletonImp.h"
 #include "MovementGenerator.h"
-#include "ScriptCalls.h"
+#include "ScriptMgr.h"
 #include "Pet.h"
 
 INSTANTIATE_SINGLETON_1(CreatureAIRegistry);
@@ -33,8 +33,8 @@ namespace FactorySelector
     CreatureAI* selectAI(Creature *creature)
     {
         // Allow scripting AI for normal creatures and not controlled pets (guardians and mini-pets)
-        if ((!creature->isPet() || !((Pet*)creature)->isControlled()) && !creature->isCharmed())
-            if(CreatureAI* scriptedAI = Script->GetAI(creature))
+        if ((!creature->IsPet() || !((Pet*)creature)->isControlled()) && !creature->isCharmed())
+            if (CreatureAI* scriptedAI = sScriptMgr.GetCreatureAI(creature))
                 return scriptedAI;
 
         CreatureAIRegistry &ai_registry(CreatureAIRepository::Instance());
@@ -46,10 +46,10 @@ namespace FactorySelector
         // select by NPC flags _first_ - otherwise EventAI might be choosen for pets/totems
         // excplicit check for isControlled() and owner type to allow guardian, mini-pets and pets controlled by NPCs to be scripted by EventAI
         Unit *owner=NULL;
-        if ((creature->isPet() && ((Pet*)creature)->isControlled() &&
+        if ((creature->IsPet() && ((Pet*)creature)->isControlled() &&
             ((owner=creature->GetOwner()) && owner->GetTypeId()==TYPEID_PLAYER)) || creature->isCharmed())
             ai_factory = ai_registry.GetRegistryItem("PetAI");
-        else if (creature->isTotem())
+        else if (creature->IsTotem())
             ai_factory = ai_registry.GetRegistryItem("TotemAI");
 
         // select by script name
@@ -91,7 +91,7 @@ namespace FactorySelector
         MovementGeneratorRegistry &mv_registry(MovementGeneratorRepository::Instance());
         MANGOS_ASSERT( creature->GetCreatureInfo() != NULL );
         MovementGeneratorCreator const * mv_factory = mv_registry.GetRegistryItem(
-            IS_PLAYER_GUID(creature->GetOwnerGUID()) ? FOLLOW_MOTION_TYPE : creature->GetDefaultMovementType());
+            creature->GetOwnerGuid().IsPlayer() ? FOLLOW_MOTION_TYPE : creature->GetDefaultMovementType());
 
         /* if( mv_factory == NULL  )
         {

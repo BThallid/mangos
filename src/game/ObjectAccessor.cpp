@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,10 +20,6 @@
 #include "ObjectMgr.h"
 #include "Policies/SingletonImp.h"
 #include "Player.h"
-#include "Creature.h"
-#include "GameObject.h"
-#include "DynamicObject.h"
-#include "Vehicle.h"
 #include "WorldPacket.h"
 #include "Item.h"
 #include "Corpse.h"
@@ -32,9 +28,7 @@
 #include "Map.h"
 #include "CellImpl.h"
 #include "GridNotifiersImpl.h"
-#include "Opcodes.h"
 #include "ObjectGuid.h"
-#include "MapInstanced.h"
 #include "World.h"
 
 #include <cmath>
@@ -125,8 +119,9 @@ ObjectAccessor::GetCorpseForPlayerGUID(ObjectGuid guid)
 {
     Guard guard(i_corpseGuard);
 
-    Player2CorpsesMapType::iterator iter = i_player2corpse.find(guid.GetRawValue());
-    if( iter == i_player2corpse.end() ) return NULL;
+    Player2CorpsesMapType::iterator iter = i_player2corpse.find(guid);
+    if (iter == i_player2corpse.end())
+        return NULL;
 
     MANGOS_ASSERT(iter->second->GetType() != CORPSE_BONES);
 
@@ -139,7 +134,7 @@ ObjectAccessor::RemoveCorpse(Corpse *corpse)
     MANGOS_ASSERT(corpse && corpse->GetType() != CORPSE_BONES);
 
     Guard guard(i_corpseGuard);
-    Player2CorpsesMapType::iterator iter = i_player2corpse.find(corpse->GetOwnerGUID());
+    Player2CorpsesMapType::iterator iter = i_player2corpse.find(corpse->GetOwnerGuid());
     if( iter == i_player2corpse.end() )
         return;
 
@@ -147,7 +142,7 @@ ObjectAccessor::RemoveCorpse(Corpse *corpse)
     CellPair cell_pair = MaNGOS::ComputeCellPair(corpse->GetPositionX(), corpse->GetPositionY());
     uint32 cell_id = (cell_pair.y_coord*TOTAL_NUMBER_OF_CELLS_PER_MAP) + cell_pair.x_coord;
 
-    sObjectMgr.DeleteCorpseCellData(corpse->GetMapId(), cell_id, GUID_LOPART(corpse->GetOwnerGUID()));
+    sObjectMgr.DeleteCorpseCellData(corpse->GetMapId(), cell_id, corpse->GetOwnerGuid().GetCounter());
     corpse->RemoveFromWorld();
 
     i_player2corpse.erase(iter);
@@ -159,14 +154,14 @@ ObjectAccessor::AddCorpse(Corpse *corpse)
     MANGOS_ASSERT(corpse && corpse->GetType() != CORPSE_BONES);
 
     Guard guard(i_corpseGuard);
-    MANGOS_ASSERT(i_player2corpse.find(corpse->GetOwnerGUID()) == i_player2corpse.end());
-    i_player2corpse[corpse->GetOwnerGUID()] = corpse;
+    MANGOS_ASSERT(i_player2corpse.find(corpse->GetOwnerGuid()) == i_player2corpse.end());
+    i_player2corpse[corpse->GetOwnerGuid()] = corpse;
 
     // build mapid*cellid -> guid_set map
     CellPair cell_pair = MaNGOS::ComputeCellPair(corpse->GetPositionX(), corpse->GetPositionY());
     uint32 cell_id = (cell_pair.y_coord*TOTAL_NUMBER_OF_CELLS_PER_MAP) + cell_pair.x_coord;
 
-    sObjectMgr.AddCorpseCellData(corpse->GetMapId(), cell_id, GUID_LOPART(corpse->GetOwnerGUID()), corpse->GetInstanceId());
+    sObjectMgr.AddCorpseCellData(corpse->GetMapId(), cell_id, corpse->GetOwnerGuid().GetCounter(), corpse->GetInstanceId());
 }
 
 void
@@ -239,7 +234,7 @@ ObjectAccessor::ConvertCorpseForPlayer(ObjectGuid player_guid, bool insignia)
         bones->SetPhaseMask(corpse->GetPhaseMask(), false);
 
         bones->SetUInt32Value(CORPSE_FIELD_FLAGS, CORPSE_FLAG_UNK2 | CORPSE_FLAG_BONES);
-        bones->SetUInt64Value(CORPSE_FIELD_OWNER, 0);
+        bones->SetGuidValue(CORPSE_FIELD_OWNER, ObjectGuid());
 
         for (int i = 0; i < EQUIPMENT_SLOT_END; ++i)
         {
@@ -282,6 +277,3 @@ template <class T> ACE_RW_Thread_Mutex HashMapHolder<T>::i_lock;
 
 template class HashMapHolder<Player>;
 template class HashMapHolder<Corpse>;
-
-/// Define the static member of ObjectAccessor
-std::list<Map*> ObjectAccessor::i_mapList;

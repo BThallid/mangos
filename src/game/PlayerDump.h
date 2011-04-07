@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,6 +49,8 @@ enum DumpTableType
     DTT_ITEM,           // <- item guids                    // item_instance
 
     DTT_ITEM_GIFT,      // <- item guids                    // character_gifts
+
+    DTT_ITEM_LOOT,      // <- item guids                    // item_loot
 
     DTT_PET,            //    -> pet guids collection       // character_pet
     DTT_PET_TABLE,      // <- pet guids                     // pet_aura, pet_spell, pet_spell_cooldown

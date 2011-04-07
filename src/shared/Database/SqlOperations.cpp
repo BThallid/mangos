@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,57 +21,85 @@
 #include "DatabaseEnv.h"
 #include "DatabaseImpl.h"
 
+#define LOCK_DB_CONN(conn) SqlConnection::Lock guard(conn)
+
 /// ---- ASYNC STATEMENTS / TRANSACTIONS ----
 
-void SqlStatement::Execute(Database *db)
+bool SqlPlainRequest::Execute(SqlConnection *conn)
 {
     /// just do it
-    db->DirectExecute(m_sql);
+    LOCK_DB_CONN(conn);
+    return conn->Execute(m_sql);
 }
 
-void SqlTransaction::Execute(Database *db)
+SqlTransaction::~SqlTransaction()
 {
-    if(m_queue.empty())
-        return;
-    db->DirectExecute("START TRANSACTION");
     while(!m_queue.empty())
     {
-        char *sql = const_cast<char*>(m_queue.front());
-        m_queue.pop();
-
-        if(!db->DirectExecute(sql))
-        {
-            delete [] sql;
-            db->DirectExecute("ROLLBACK");
-            while(!m_queue.empty())
-            {
-                delete [] (const_cast<char*>(m_queue.front()));
-                m_queue.pop();
-            }
-            return;
-        }
-
-        delete [] sql;
+        delete m_queue.back();
+        m_queue.pop_back();
     }
-    db->DirectExecute("COMMIT");
+}
+
+bool SqlTransaction::Execute(SqlConnection *conn)
+{
+    if(m_queue.empty())
+        return true;
+
+    LOCK_DB_CONN(conn);
+
+    conn->BeginTransaction();
+
+    const int nItems = m_queue.size();
+    for (int i = 0; i < nItems; ++i)
+    {
+        SqlOperation * pStmt = m_queue[i];
+
+        if(!pStmt->Execute(conn))
+        {
+            conn->RollbackTransaction();
+            return false;
+        }
+    }
+
+    return conn->CommitTransaction();
+}
+
+SqlPreparedRequest::SqlPreparedRequest(int nIndex, SqlStmtParameters * arg ) : m_nIndex(nIndex), m_param(arg)
+{
+}
+
+SqlPreparedRequest::~SqlPreparedRequest()
+{
+    delete m_param;
+}
+
+bool SqlPreparedRequest::Execute( SqlConnection *conn )
+{
+    LOCK_DB_CONN(conn);
+    return conn->ExecuteStmt(m_nIndex, *m_param);
 }
 
 /// ---- ASYNC QUERIES ----
 
-void SqlQuery::Execute(Database *db)
+bool SqlQuery::Execute(SqlConnection *conn)
 {
     if(!m_callback || !m_queue)
-        return;
+        return false;
+
+    LOCK_DB_CONN(conn);
     /// execute the query and store the result in the callback
-    m_callback->SetResult(db->Query(m_sql));
+    m_callback->SetResult(conn->Query(m_sql));
     /// add the callback to the sql result queue of the thread it originated from
     m_queue->add(m_callback);
+
+    return true;
 }
 
 void SqlResultQueue::Update()
 {
     /// execute the callbacks waiting in the synchronization queue
-    MaNGOS::IQueryCallback* callback;
+    MaNGOS::IQueryCallback* callback = NULL;
     while (next(callback))
     {
         callback->Execute();
@@ -179,21 +207,23 @@ void SqlQueryHolder::SetSize(size_t size)
     m_queries.resize(size);
 }
 
-void SqlQueryHolderEx::Execute(Database *db)
+bool SqlQueryHolderEx::Execute(SqlConnection *conn)
 {
     if(!m_holder || !m_callback || !m_queue)
-        return;
+        return false;
 
+    LOCK_DB_CONN(conn);
     /// we can do this, we are friends
     std::vector<SqlQueryHolder::SqlResultPair> &queries = m_holder->m_queries;
-
     for(size_t i = 0; i < queries.size(); i++)
     {
         /// execute all queries in the holder and pass the results
         char const *sql = queries[i].first;
-        if(sql) m_holder->SetResult(i, db->Query(sql));
+        if(sql) m_holder->SetResult(i, conn->Query(sql));
     }
 
     /// sync with the caller thread
     m_queue->add(m_callback);
+
+    return true;
 }

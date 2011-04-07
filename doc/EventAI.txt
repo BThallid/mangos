@@ -2,6 +2,8 @@
 EventAI Documentation: (Last Updated: January 8, 2010)
 ======================================================
 
+Copyright (c) 2009-2011 MaNGOS <http://getmangos.com/>
+
 EventAI allows users to create new creature scripts entirely within the database.
 
 For the AI to be used, you must first make sure to set AIname for each creature that should use this AI.
@@ -83,11 +85,12 @@ Some events such as EVENT_T_AGGRO, EVENT_T_DEATH, EVENT_T_SPAWNED, and EVENT_T_E
 18   EVENT_T_TARGET_MANA            ManaMax%, ManaMin%, RepeatMin, RepeatMax                Expires when current target's Mana is between (Param1) and (Param2). Will repeat every (Param3) and (Param4).
 21   EVENT_T_REACHED_HOME           NONE                                                    Expires when a creature reaches it's home (spawn) location after evade.
 22   EVENT_T_RECEIVE_EMOTE          EmoteId, Condition, CondValue1, CondValue2              Expires when a creature receives an emote with emote text id (enum TextEmotes) in (Param1). Conditions can be defined (Param2) with optional values (Param3,Param4), see enum ConditionType.
-23   EVENT_T_BUFFED                 SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when a creature has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
-24   EVENT_T_TARGET_BUFFED          SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when a target unit has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
+23   EVENT_T_AURA                   SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when a creature has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
+24   EVENT_T_TARGET_AURA            SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when the current target unit has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
 25   EVENT_T_SUMMONED_JUST_DIED     CreatureId, RepeatMin, RepeatMax                        Expires after creature with entry = (Param1) is die (Param1 = 0 means all spawns). Will repeat every (Param2) and (Param3).
 26   EVENT_T_SUMMONED_JUST_DESPAWN  CreatureId, RepeatMin, RepeatMax                        Expires before creature with entry = (Param1) is despawn (Param1 = 0 means all spawns). Will repeat every (Param2) and (Param3).
-27   EVENT_T_MISSING_BUFF           SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when a creature not has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
+27   EVENT_T_MISSING_AURA           SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when a creature not has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
+28   EVENT_T_TARGET_MISSING_AURA    SpellID, AmmountInStack, RepeatMin, RepeatMax           Expires when when the current target unit not has spell (Param1) auras applied in a stack greater or equal to value provided in (Param2). Will repeat every (Param3) and (Param4).
 
 
 =========================================
@@ -102,7 +105,7 @@ For all ACTION_T_RANDOM, When a Particular Param is selected for the Event... Th
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 0    ACTION_T_NONE                          No Action                       Does nothing.
 1    ACTION_T_TEXT                          -TextId1, -TextId2, -TextId3    Simply displays the specified -TextId. When -TextId2 and -TextId3 are specified, the selection will be randomized. Text types are defined, along with other options for the text, in a table below. All values needs to be negative.
-2    ACTION_T_SET_FACTION                   FactionId                       Changes faction for a creature. When param1 is zero, creature will revert to it's default faction.
+2    ACTION_T_SET_FACTION                   FactionId, Flags                Changes faction for a creature. When param1 is zero, creature will revert to it's default faction. Flags will determine when faction is restored to default (evade, respawn etc)
 3    ACTION_T_MORPH_TO_ENTRY_OR_MODEL       CreatureEntry, ModelId          Set either model from creature_template.entry (Param1) OR explicit modelId (Param2). If (Param1) AND (Param2) are both 0, demorph and revert to the default model.
 4    ACTION_T_SOUND                         SoundId                         Plays a sound
 5    ACTION_T_EMOTE                         EmoteId                         Does an emote
@@ -427,6 +430,11 @@ Read at bottom for documentation of creature_ai_texts-table.
 2 = ACTION_T_SET_FACTION:
 ------------------
 Parameter 1: FactionId from Faction.dbc OR 0. Changes faction for creature. If 0, creature will revert to it's default faction if previously changed.
+Parameter 2: When Parameter 1 is not 0, flags can be used to restore default faction at certain events. Current supported, from enum TemporaryFactionFlags:
+                TEMPFACTION_NONE                    = 0x00,  // A persistent faction change and will require manual change to default/another faction when changed once
+                TEMPFACTION_RESTORE_RESPAWN         = 0x01,  // Default faction will be restored at respawn
+                TEMPFACTION_RESTORE_COMBAT_STOP     = 0x02,  // ... at CombatStop() (happens at creature death, at evade or custom scripte among others)
+                TEMPFACTION_RESTORE_REACH_HOME      = 0x04,  // ... at reaching home in home movement (evade), if not already done at CombatStop()
 
 -----------------------
 3 = ACTION_T_MORPH_TO_ENTRY_OR_MODEL:

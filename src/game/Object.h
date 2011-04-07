@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,8 +42,6 @@
 
 #define MAX_STEALTH_DETECT_RANGE    45.0f
 
-uint32 GuidHigh2TypeId(uint32 guid_hi);
-
 enum TempSummonType
 {
     TEMPSUMMON_TIMED_OR_DEAD_DESPAWN       = 1,             // despawns after a specified time OR when the creature disappears
@@ -71,6 +69,7 @@ class Unit;
 class Map;
 class UpdateMask;
 class InstanceData;
+class TerrainInfo;
 
 typedef UNORDERED_MAP<Player*, UpdateData> UpdateDataMapType;
 
@@ -85,6 +84,28 @@ struct WorldLocation
         : mapid(_mapid), coord_x(_x), coord_y(_y), coord_z(_z), orientation(_o) {}
     WorldLocation(WorldLocation const &loc)
         : mapid(loc.mapid), coord_x(loc.coord_x), coord_y(loc.coord_y), coord_z(loc.coord_z), orientation(loc.orientation) {}
+};
+
+
+//use this class to measure time between world update ticks
+//essential for units updating their spells after cells become active
+class WorldUpdateCounter
+{
+    public:
+        WorldUpdateCounter() : m_tmStart(0) {}
+
+        time_t timeElapsed()
+        {
+            if(!m_tmStart)
+                m_tmStart = WorldTimer::tickPrevTime();
+
+            return WorldTimer::getMSTimeDiff(m_tmStart, WorldTimer::tickTime());
+        }
+
+        void Reset() { m_tmStart = WorldTimer::tickTime(); }
+
+    private:
+        uint32 m_tmStart;
 };
 
 class MANGOS_DLL_SPEC Object
@@ -112,8 +133,9 @@ class MANGOS_DLL_SPEC Object
 
         ObjectGuid const& GetObjectGuid() const { return GetGuidValue(OBJECT_FIELD_GUID); }
         const uint64& GetGUID() const { return GetUInt64Value(OBJECT_FIELD_GUID); }
-        uint32 GetGUIDLow() const { return GUID_LOPART(GetUInt64Value(OBJECT_FIELD_GUID)); }
+        uint32 GetGUIDLow() const { return GetObjectGuid().GetCounter(); }
         PackedGuid const& GetPackGUID() const { return m_PackGUID; }
+        std::string GetGuidStr() const { return GetObjectGuid().GetString(); }
 
         uint32 GetEntry() const { return GetUInt32Value(OBJECT_FIELD_ENTRY); }
         void SetEntry(uint32 entry) { SetUInt32Value(OBJECT_FIELD_ENTRY, entry); }
@@ -135,6 +157,7 @@ class MANGOS_DLL_SPEC Object
         virtual void AddToClientUpdateList();
         virtual void RemoveFromClientUpdateList();
         virtual void BuildUpdateData(UpdateDataMapType& update_players);
+        void MarkForClientUpdate();
 
         void BuildValuesUpdateBlockForPlayer( UpdateData *data, Player *target ) const;
         void BuildOutOfRangeUpdateBlock( UpdateData *data ) const;
@@ -222,12 +245,20 @@ class MANGOS_DLL_SPEC Object
             return (m_uint32Values[ index ] & flag) != 0;
         }
 
+        void ApplyModFlag( uint16 index, uint32 flag, bool apply)
+        {
+            if (apply)
+                SetFlag(index, flag);
+            else
+                RemoveFlag(index, flag);
+        }
+
         void SetByteFlag( uint16 index, uint8 offset, uint8 newFlag );
         void RemoveByteFlag( uint16 index, uint8 offset, uint8 newFlag );
 
-        void ToggleFlag( uint16 index, uint8 offset, uint8 flag )
+        void ToggleByteFlag( uint16 index, uint8 offset, uint8 flag )
         {
-            if(HasByteFlag(index, offset, flag))
+            if (HasByteFlag(index, offset, flag))
                 RemoveByteFlag(index, offset, flag);
             else
                 SetByteFlag(index, offset, flag);
@@ -240,9 +271,37 @@ class MANGOS_DLL_SPEC Object
             return (((uint8*)&m_uint32Values[index])[offset] & flag) != 0;
         }
 
-        void ApplyModFlag( uint16 index, uint32 flag, bool apply)
+        void ApplyModByteFlag( uint16 index, uint8 offset, uint32 flag, bool apply)
         {
-            if(apply) SetFlag(index,flag); else RemoveFlag(index,flag);
+            if (apply)
+                SetByteFlag(index, offset, flag);
+            else
+                RemoveByteFlag(index, offset, flag);
+        }
+
+        void SetShortFlag(uint16 index, bool highpart, uint16 newFlag);
+        void RemoveShortFlag(uint16 index, bool highpart, uint16 oldFlag);
+
+        void ToggleShortFlag( uint16 index, bool highpart, uint8 flag )
+        {
+            if (HasShortFlag(index, highpart, flag))
+                RemoveShortFlag(index, highpart, flag);
+            else
+                SetShortFlag(index, highpart, flag);
+        }
+
+        bool HasShortFlag( uint16 index, bool highpart, uint8 flag ) const
+        {
+            MANGOS_ASSERT( index < m_valuesCount || PrintIndexError( index , false ) );
+            return (((uint16*)&m_uint32Values[index])[highpart ? 1 : 0] & flag) != 0;
+        }
+
+        void ApplyModShortFlag( uint16 index, bool highpart, uint32 flag, bool apply)
+        {
+            if (apply)
+                SetShortFlag(index, highpart, flag);
+            else
+                RemoveShortFlag(index, highpart, flag);
         }
 
         void SetFlag64( uint16 index, uint64 newFlag )
@@ -261,7 +320,7 @@ class MANGOS_DLL_SPEC Object
 
         void ToggleFlag64( uint16 index, uint64 flag)
         {
-            if(HasFlag64(index, flag))
+            if (HasFlag64(index, flag))
                 RemoveFlag64(index, flag);
             else
                 SetFlag64(index, flag);
@@ -275,7 +334,10 @@ class MANGOS_DLL_SPEC Object
 
         void ApplyModFlag64( uint16 index, uint64 flag, bool apply)
         {
-            if(apply) SetFlag64(index,flag); else RemoveFlag64(index, flag);
+            if (apply)
+                SetFlag64(index, flag);
+            else
+                RemoveFlag64(index, flag);
         }
 
         void ClearUpdateMask(bool remove);
@@ -286,8 +348,8 @@ class MANGOS_DLL_SPEC Object
 
         void InitValues() { _InitValues(); }
 
-        virtual bool hasQuest(uint32 /* quest_id */) const { return false; }
-        virtual bool hasInvolvedQuest(uint32 /* quest_id */) const { return false; }
+        virtual bool HasQuest(uint32 /* quest_id */) const { return false; }
+        virtual bool HasInvolvedQuest(uint32 /* quest_id */) const { return false; }
     protected:
 
         Object ( );
@@ -339,16 +401,38 @@ class MANGOS_DLL_SPEC WorldObject : public Object
     friend struct WorldObjectChangeAccumulator;
 
     public:
+
+        //class is used to manipulate with WorldUpdateCounter
+        //it is needed in order to get time diff between two object's Update() calls
+        class MANGOS_DLL_SPEC UpdateHelper
+        {
+            public:
+                explicit UpdateHelper(WorldObject * obj) : m_obj(obj) {}
+                ~UpdateHelper() { }
+
+                void Update( uint32 time_diff )
+                {
+                    m_obj->Update( m_obj->m_updateTracker.timeElapsed(), time_diff);
+                    m_obj->m_updateTracker.Reset();
+                }
+
+            private:
+                UpdateHelper( const UpdateHelper& );
+                UpdateHelper& operator=( const UpdateHelper& );
+
+                WorldObject * const m_obj;
+        };
+
         virtual ~WorldObject ( ) {}
 
-        virtual void Update ( uint32 /*time_diff*/ ) { }
+        virtual void Update ( uint32 /*update_diff*/, uint32 /*time_diff*/ ) {}
 
         void _Create( uint32 guidlow, HighGuid guidhigh, uint32 phaseMask);
 
         void Relocate(float x, float y, float z, float orientation);
         void Relocate(float x, float y, float z);
 
-        void SetOrientation(float orientation) { m_orientation = orientation; }
+        void SetOrientation(float orientation);
 
         float GetPositionX( ) const { return m_positionX; }
         float GetPositionY( ) const { return m_positionY; }
@@ -360,10 +444,10 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         float GetOrientation( ) const { return m_orientation; }
         void GetNearPoint2D( float &x, float &y, float distance, float absAngle) const;
         void GetNearPoint(WorldObject const* searcher, float &x, float &y, float &z, float searcher_bounding_radius, float distance2d, float absAngle) const;
-        void GetClosePoint(float &x, float &y, float &z, float bounding_radius, float distance2d = 0, float angle = 0) const
+        void GetClosePoint(float &x, float &y, float &z, float bounding_radius, float distance2d = 0, float angle = 0, const WorldObject* obj = NULL ) const
         {
             // angle calculated from current orientation
-            GetNearPoint(NULL, x, y, z, bounding_radius, distance2d, GetOrientation() + angle);
+            GetNearPoint(obj, x, y, z, bounding_radius, distance2d, GetOrientation() + angle);
         }
         void GetContactPoint( const WorldObject* obj, float &x, float &y, float &z, float distance2d = CONTACT_DISTANCE) const
         {
@@ -375,6 +459,7 @@ class MANGOS_DLL_SPEC WorldObject : public Object
 
         bool IsPositionValid() const;
         void UpdateGroundPositionZ(float x, float y, float &z) const;
+        void UpdateAllowedPositionZ(float x, float y, float &z) const;
 
         void GetRandomPoint( float x, float y, float z, float distance, float &rand_x, float &rand_y, float &rand_z ) const;
 
@@ -441,16 +526,16 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         virtual void SendMessageToSetInRange(WorldPacket *data, float dist, bool self);
         void SendMessageToSetExcept(WorldPacket *data, Player const* skipped_receiver);
 
-        void MonsterSay(const char* text, uint32 language, uint64 TargetGuid);
-        void MonsterYell(const char* text, uint32 language, uint64 TargetGuid);
-        void MonsterTextEmote(const char* text, uint64 TargetGuid, bool IsBossEmote = false);
-        void MonsterWhisper(const char* text, uint64 receiver, bool IsBossWhisper = false);
-        void MonsterSay(int32 textId, uint32 language, uint64 TargetGuid);
-        void MonsterYell(int32 textId, uint32 language, uint64 TargetGuid);
-        void MonsterTextEmote(int32 textId, uint64 TargetGuid, bool IsBossEmote = false);
-        void MonsterWhisper(int32 textId, uint64 receiver, bool IsBossWhisper = false);
-        void MonsterYellToZone(int32 textId, uint32 language, uint64 TargetGuid);
-        void BuildMonsterChat(WorldPacket *data, uint8 msgtype, char const* text, uint32 language, char const* name, uint64 TargetGuid) const;
+        void MonsterSay(const char* text, uint32 language, Unit* target = NULL);
+        void MonsterYell(const char* text, uint32 language, Unit* target = NULL);
+        void MonsterTextEmote(const char* text, Unit* target, bool IsBossEmote = false);
+        void MonsterWhisper(const char* text, Unit* target, bool IsBossWhisper = false);
+        void MonsterSay(int32 textId, uint32 language, Unit* target = NULL);
+        void MonsterYell(int32 textId, uint32 language, Unit* target = NULL);
+        void MonsterTextEmote(int32 textId, Unit* target, bool IsBossEmote = false);
+        void MonsterWhisper(int32 textId, Unit* receiver, bool IsBossWhisper = false);
+        void MonsterYellToZone(int32 textId, uint32 language, Unit* target);
+        void BuildMonsterChat(WorldPacket *data, uint8 msgtype, char const* text, uint32 language, char const* name, ObjectGuid targetGuid, char const* targetName) const;
 
         void PlayDistanceSound(uint32 sound_id, Player* target = NULL);
         void PlayDirectSound(uint32 sound_id, Player* target = NULL);
@@ -466,6 +551,7 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         void AddObjectToRemoveList();
 
         void UpdateObjectVisibility();
+        virtual void UpdateVisibilityAndView();             // update visibility for object and object for all around
 
         // main visibility check function in normal case (ignore grey zone distance check)
         bool isVisibleFor(Player const* u, WorldObject const* viewPoint) const { return isVisibleForInState(u,viewPoint,false); }
@@ -478,14 +564,14 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         //used to check all object's GetMap() calls when object is not in world!
         void ResetMap() { m_currMap = NULL; }
 
-        //this function should be removed in nearest time...
-        Map const* GetBaseMap() const;
+        //obtain terrain data for map where this object belong...
+        TerrainInfo const* GetTerrain() const;
 
         void AddToClientUpdateList();
         void RemoveFromClientUpdateList();
         void BuildUpdateData(UpdateDataMapType &);
 
-        Creature* SummonCreature(uint32 id, float x, float y, float z, float ang,TempSummonType spwtype,uint32 despwtime);
+        Creature* SummonCreature(uint32 id, float x, float y, float z, float ang,TempSummonType spwtype,uint32 despwtime, bool asActiveObject = false);
 
         bool isActiveObject() const { return m_isActiveObject || m_viewPoint.hasViewers(); }
 
@@ -515,6 +601,8 @@ class MANGOS_DLL_SPEC WorldObject : public Object
         float m_orientation;
 
         ViewPoint m_viewPoint;
+
+        WorldUpdateCounter m_updateTracker;
 };
 
 #endif

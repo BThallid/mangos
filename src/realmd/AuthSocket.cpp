@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -414,7 +414,7 @@ bool AuthSocket::_HandleLogonChallenge()
                     "id = %u AND active = 1 AND (unbandate > UNIX_TIMESTAMP() OR unbandate = bandate)", (*result)[1].GetUInt32());
                 if(banresult)
                 {
-                    if((*banresult)[0].GetUInt64() != (*banresult)[1].GetUInt64())
+                    if((*banresult)[0].GetUInt64() == (*banresult)[1].GetUInt64())
                     {
                         pkt << (uint8) WOW_FAIL_BANNED;
                         BASIC_LOG("[AuthChallenge] Banned account %s tries to login!",_login.c_str ());
@@ -682,13 +682,13 @@ bool AuthSocket::_HandleLogonProof()
     {
         if (_build > 6005)                                  // > 1.12.2
         {
-            char data[4]= { CMD_AUTH_LOGON_PROOF, WOW_FAIL_INCORRECT_PASSWORD, 3, 0};
+            char data[4] = { CMD_AUTH_LOGON_PROOF, WOW_FAIL_UNKNOWN_ACCOUNT, 3, 0};
             send(data, sizeof(data));
         }
         else
         {
             // 1.x not react incorrectly at 4-byte message use 3 as real error
-            char data[2]= { CMD_AUTH_LOGON_PROOF, WOW_FAIL_INCORRECT_PASSWORD};
+            char data[2] = { CMD_AUTH_LOGON_PROOF, WOW_FAIL_UNKNOWN_ACCOUNT};
             send(data, sizeof(data));
         }
         BASIC_LOG("[AuthChallenge] account %s tried to login with wrong password!",_login.c_str ());
@@ -888,7 +888,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer &pkt, uint32 acctid)
         case 5875:                                          // 1.12.1
         case 6005:                                          // 1.12.2
         {
-            pkt << uint32(0);
+            pkt << uint32(0);                               // unused value
             pkt << uint8(sRealmList.size());
 
             for(RealmList::RealmMap::const_iterator  i = sRealmList.begin(); i != sRealmList.end(); ++i)
@@ -924,7 +924,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer &pkt, uint32 acctid)
                 }
 
                 // Show offline state for unsupported client builds and locked realms (1.x clients not support locked state show)
-                if (!ok_build || (i->second.allowedSecurityLevel >= _accountSecurityLevel))
+                if (!ok_build || (i->second.allowedSecurityLevel > _accountSecurityLevel))
                     realmflags = RealmFlags(realmflags | REALM_FLAG_OFFLINE);
 
                 pkt << uint32(i->second.icon);              // realm type
@@ -937,8 +937,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer &pkt, uint32 acctid)
                 pkt << uint8(0x00);                         // unk, may be realm number/id?
             }
 
-            pkt << uint8(0x00);
-            pkt << uint8(0x02);
+            pkt << uint16(0x0002);                          // unused value (why 2?)
             break;
         }
 
@@ -950,7 +949,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer &pkt, uint32 acctid)
         case 12340:                                         // 3.3.5a
         default:                                            // and later
         {
-            pkt << uint32(0);
+            pkt << uint32(0);                               // unused value
             pkt << uint16(sRealmList.size());
 
             for(RealmList::RealmMap::const_iterator  i = sRealmList.begin(); i != sRealmList.end(); ++i)
@@ -1004,7 +1003,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer &pkt, uint32 acctid)
                 }
             }
 
-            pkt << uint16(0x0010);
+            pkt << uint16(0x0010);                          // unused value (why 10?)
             break;
         }
     }

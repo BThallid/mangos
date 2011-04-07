@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@
 #include "World.h"
 #include "GameEventMgr.h"
 #include "SpellMgr.h"
-#include "PoolManager.h"
+#include "MapPersistentStateMgr.h"
 #include "AccountMgr.h"
 #include "GMTicketMgr.h"
 #include "WaypointManager.h"
@@ -56,7 +56,7 @@ bool ChatHandler::HandleMuteCommand(char* args)
     char* nameStr = ExtractOptNotLastArg(&args);
 
     Player* target;
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&nameStr, &target, &target_guid, &target_name))
         return false;
@@ -98,7 +98,7 @@ bool ChatHandler::HandleMuteCommand(char* args)
 bool ChatHandler::HandleUnmuteCommand(char* args)
 {
     Player* target;
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&args, &target, &target_guid, &target_name))
         return false;
@@ -521,7 +521,7 @@ bool ChatHandler::HandleGoCreatureCommand(char* args)
             if (!tEntry)
                 return false;
 
-            if (!sObjectMgr.GetCreatureTemplate(tEntry))
+            if (!ObjectMgr::GetCreatureTemplate(tEntry))
             {
                 SendSysMessage(LANG_COMMAND_GOCREATNOTFOUND);
                 SetSentErrorMessage(true);
@@ -666,7 +666,7 @@ bool ChatHandler::HandleGoObjectCommand(char* args)
             if (!tEntry)
                 return false;
 
-            if (!sObjectMgr.GetGameObjectInfo(tEntry))
+            if (!ObjectMgr::GetGameObjectInfo(tEntry))
             {
                 SendSysMessage(LANG_COMMAND_GOOBJNOTFOUND);
                 SetSentErrorMessage(true);
@@ -842,7 +842,7 @@ bool ChatHandler::HandleGameObjectTargetCommand(char* args)
         o =       fields[5].GetFloat();
         mapid =   fields[6].GetUInt16();
         pool_id = sPoolMgr.IsPartOfAPool<GameObject>(lowguid);
-        if (!pool_id || sPoolMgr.IsSpawnedObject<GameObject>(lowguid))
+        if (!pool_id || pl->GetMap()->GetPersistentState()->IsSpawnedPoolObject<GameObject>(lowguid))
             found = true;
     } while (result->NextRow() && (!found));
 
@@ -877,7 +877,7 @@ bool ChatHandler::HandleGameObjectTargetCommand(char* args)
 
         PSendSysMessage(LANG_COMMAND_RAWPAWNTIMES, defRespawnDelayStr.c_str(),curRespawnDelayStr.c_str());
 
-        ShowNpcOrGoSpawnInformation<GameObject>(target->GetDBTableGUIDLow());
+        ShowNpcOrGoSpawnInformation<GameObject>(target->GetGUIDLow());
     }
     return true;
 }
@@ -897,7 +897,7 @@ bool ChatHandler::HandleGameObjectDeleteCommand(char* args)
 
     // by DB guid
     if (GameObjectData const* go_data = sObjectMgr.GetGOData(lowguid))
-        obj = GetObjectGlobalyWithGuidOrNearWithDbGuid(lowguid,go_data->id);
+        obj = GetGameObjectWithGuid(lowguid,go_data->id);
 
     if (!obj)
     {
@@ -906,13 +906,13 @@ bool ChatHandler::HandleGameObjectDeleteCommand(char* args)
         return false;
     }
 
-    uint64 owner_guid = obj->GetOwnerGUID();
-    if (owner_guid)
+    ObjectGuid ownerGuid = obj->GetOwnerGuid();
+    if (!ownerGuid.IsEmpty())
     {
-        Unit* owner = ObjectAccessor::GetUnit(*m_session->GetPlayer(),owner_guid);
-        if (!owner || !IS_PLAYER_GUID(owner_guid))
+        Unit* owner = ObjectAccessor::GetUnit(*m_session->GetPlayer(), ownerGuid);
+        if (!owner || !ownerGuid.IsPlayer())
         {
-            PSendSysMessage(LANG_COMMAND_DELOBJREFERCREATURE, GUID_LOPART(owner_guid), obj->GetGUIDLow());
+            PSendSysMessage(LANG_COMMAND_DELOBJREFERCREATURE, obj->GetGUIDLow(), ownerGuid.GetString().c_str());
             SetSentErrorMessage(true);
             return false;
         }
@@ -944,7 +944,7 @@ bool ChatHandler::HandleGameObjectTurnCommand(char* args)
 
     // by DB guid
     if (GameObjectData const* go_data = sObjectMgr.GetGOData(lowguid))
-        obj = GetObjectGlobalyWithGuidOrNearWithDbGuid(lowguid,go_data->id);
+        obj = GetGameObjectWithGuid(lowguid,go_data->id);
 
     if (!obj)
     {
@@ -988,7 +988,7 @@ bool ChatHandler::HandleGameObjectMoveCommand(char* args)
 
     // by DB guid
     if (GameObjectData const* go_data = sObjectMgr.GetGOData(lowguid))
-        obj = GetObjectGlobalyWithGuidOrNearWithDbGuid(lowguid,go_data->id);
+        obj = GetGameObjectWithGuid(lowguid,go_data->id);
 
     if (!obj)
     {
@@ -1086,9 +1086,17 @@ bool ChatHandler::HandleGameObjectAddCommand(char* args)
     Map *map = chr->GetMap();
 
     GameObject* pGameObj = new GameObject;
-    uint32 db_lowGUID = sObjectMgr.GenerateLowGuid(HIGHGUID_GAMEOBJECT);
 
-    if (!pGameObj->Create(db_lowGUID, gInfo->id, map, chr->GetPhaseMaskForSpawn(), x, y, z, o, 0.0f, 0.0f, 0.0f, 0.0f, 0, GO_STATE_READY))
+    // used guids from specially reserved range (can be 0 if no free values)
+    uint32 db_lowGUID = sObjectMgr.GenerateStaticGameObjectLowGuid();
+    if (!db_lowGUID)
+    {
+        SendSysMessage(LANG_NO_FREE_STATIC_GUID_FOR_SPAWN);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    if (!pGameObj->Create(db_lowGUID, gInfo->id, map, chr->GetPhaseMaskForSpawn(), x, y, z, o, 0.0f, 0.0f, 0.0f, 0.0f, GO_ANIMPROGRESS_DEFAULT, GO_STATE_READY))
     {
         delete pGameObj;
         return false;
@@ -1111,7 +1119,6 @@ bool ChatHandler::HandleGameObjectAddCommand(char* args)
 
     map->Add(pGameObj);
 
-    // TODO: is it really necessary to add both the real and DB table guid here ?
     sObjectMgr.AddGameobjectToGrid(db_lowGUID, sObjectMgr.GetGOData(db_lowGUID));
 
     PSendSysMessage(LANG_GAMEOBJECT_ADD,id,gInfo->name,db_lowGUID,x,y,z);
@@ -1133,7 +1140,7 @@ bool ChatHandler::HandleGameObjectPhaseCommand(char* args)
 
     // by DB guid
     if (GameObjectData const* go_data = sObjectMgr.GetGOData(lowguid))
-        obj = GetObjectGlobalyWithGuidOrNearWithDbGuid(lowguid,go_data->id);
+        obj = GetGameObjectWithGuid(lowguid,go_data->id);
 
     if (!obj)
     {
@@ -1201,16 +1208,16 @@ bool ChatHandler::HandleGameObjectNearCommand(char* args)
 
 bool ChatHandler::HandleGUIDCommand(char* /*args*/)
 {
-    uint64 guid = m_session->GetPlayer()->GetSelection();
+    ObjectGuid guid = m_session->GetPlayer()->GetSelectionGuid();
 
-    if (guid == 0)
+    if (guid.IsEmpty())
     {
         SendSysMessage(LANG_NO_SELECTION);
         SetSentErrorMessage(true);
         return false;
     }
 
-    PSendSysMessage(LANG_OBJECT_GUID, GUID_LOPART(guid), GUID_HIPART(guid));
+    PSendSysMessage(LANG_OBJECT_GUID, guid.GetString().c_str());
     return true;
 }
 
@@ -1459,7 +1466,7 @@ bool ChatHandler::HandleModifyRepCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     uint32 factionId;
@@ -1499,7 +1506,7 @@ bool ChatHandler::HandleModifyRepCommand(char* args)
             if (wrank.substr(0, wrankStr.size()) == wrankStr)
             {
                 int32 delta;
-                if (!ExtractInt32(&args, delta) || (delta < 0) || (delta > ReputationMgr::PointsInRank[r] -1))
+                if (!ExtractOptInt32(&args, delta, 0) || (delta < 0) || (delta > ReputationMgr::PointsInRank[r] -1))
                 {
                     PSendSysMessage(LANG_COMMAND_FACTION_DELTA, (ReputationMgr::PointsInRank[r]-1));
                     SetSentErrorMessage(true);
@@ -1551,36 +1558,30 @@ bool ChatHandler::HandleNpcAddCommand(char* args)
     if (!ExtractUint32KeyFromLink(&args, "Hcreature_entry", id))
         return false;
 
-    uint32 team;
-    if (!ExtractOptUInt32(&args, team, 0))
-        return false;
-
     Player *chr = m_session->GetPlayer();
-    float x = chr->GetPositionX();
-    float y = chr->GetPositionY();
-    float z = chr->GetPositionZ();
-    float o = chr->GetOrientation();
+    CreatureCreatePos pos(chr, chr->GetOrientation());
     Map *map = chr->GetMap();
 
     Creature* pCreature = new Creature;
-    if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id, team))
+
+    // used guids from specially reserved range (can be 0 if no free values)
+    uint32 lowguid = sObjectMgr.GenerateStaticCreatureLowGuid();
+    if (!lowguid)
     {
-        delete pCreature;
+        SendSysMessage(LANG_NO_FREE_STATIC_GUID_FOR_SPAWN);
+        SetSentErrorMessage(true);
         return false;
     }
 
-    pCreature->Relocate(x,y,z,o);
-
-    if (!pCreature->IsPositionValid())
+    if (!pCreature->Create(lowguid, pos, id))
     {
-        sLog.outError("Creature (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",pCreature->GetGUIDLow(),pCreature->GetEntry(),pCreature->GetPositionX(),pCreature->GetPositionY());
         delete pCreature;
         return false;
     }
 
     pCreature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
 
-    uint32 db_guid = pCreature->GetDBTableGUIDLow();
+    uint32 db_guid = pCreature->GetGUIDLow();
 
     // To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
     pCreature->LoadFromDB(db_guid, map);
@@ -1617,7 +1618,7 @@ bool ChatHandler::HandleNpcAddVendorItemCommand(char* args)
 
     uint32 vendor_entry = vendor ? vendor->GetEntry() : 0;
 
-    if (!sObjectMgr.IsVendorItemValid(vendor_entry, itemId, maxcount, incrtime, extendedcost, m_session->GetPlayer()))
+    if (!sObjectMgr.IsVendorItemValid(false, "npc_vendor", vendor_entry, itemId, maxcount, incrtime, extendedcost, m_session->GetPlayer()))
     {
         SetSentErrorMessage(true);
         return false;
@@ -1699,14 +1700,14 @@ bool ChatHandler::HandleNpcAddMoveCommand(char* args)
     sWaypointMgr.AddLastNode(lowguid, player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetOrientation(), wait, 0);
 
     // update movement type
-    WorldDatabase.PExecuteLog("UPDATE creature SET MovementType = '%u' WHERE guid = '%u'", WAYPOINT_MOTION_TYPE,lowguid);
+    WorldDatabase.PExecuteLog("UPDATE creature SET MovementType=%u WHERE guid=%u", WAYPOINT_MOTION_TYPE,lowguid);
     if (pCreature)
     {
         pCreature->SetDefaultMovementType(WAYPOINT_MOTION_TYPE);
         pCreature->GetMotionMaster()->Initialize();
         if (pCreature->isAlive())                            // dead creature will reset movement generator at respawn
         {
-            pCreature->setDeathState(JUST_DIED);
+            pCreature->SetDeathState(JUST_DIED);
             pCreature->Respawn();
         }
         pCreature->SaveToDB();
@@ -1739,21 +1740,16 @@ bool ChatHandler::HandleNpcChangeLevelCommand(char* args)
         return false;
     }
 
-    if (pCreature->isPet())
-    {
-        if (((Pet*)pCreature)->getPetType()==HUNTER_PET)
-        {
-            pCreature->SetUInt32Value(UNIT_FIELD_PETNEXTLEVELEXP, sObjectMgr.GetXPForPetLevel(lvl));
-            pCreature->SetUInt32Value(UNIT_FIELD_PETEXPERIENCE, 0);
-        }
+    if (pCreature->IsPet())
         ((Pet*)pCreature)->GivePetLevel(lvl);
-    }
     else
     {
         pCreature->SetMaxHealth(100 + 30*lvl);
         pCreature->SetHealth(100 + 30*lvl);
         pCreature->SetLevel(lvl);
-        pCreature->SaveToDB();
+
+        if (pCreature->HasStaticDBSpawnData())
+            pCreature->SaveToDB();
     }
 
     return true;
@@ -1805,7 +1801,7 @@ bool ChatHandler::HandleNpcDeleteCommand(char* args)
     else
         unit = getSelectedCreature();
 
-    if (!unit || unit->isPet() || unit->isTotem() || unit->isVehicle())
+    if (!unit || unit->IsPet() || unit->IsTotem() || unit->IsVehicle())
     {
         SendSysMessage(LANG_SELECT_CREATURE);
         SetSentErrorMessage(true);
@@ -1855,7 +1851,7 @@ bool ChatHandler::HandleNpcMoveCommand(char* args)
         pCreature = player->GetMap()->GetCreature(ObjectGuid(HIGHGUID_UNIT, data->id, lowguid));
     }
     else
-        lowguid = pCreature->GetDBTableGUIDLow();
+        lowguid = pCreature->GetGUIDLow();
 
     float x = m_session->GetPlayer()->GetPositionX();
     float y = m_session->GetPlayer()->GetPositionY();
@@ -1864,7 +1860,7 @@ bool ChatHandler::HandleNpcMoveCommand(char* args)
 
     if (pCreature)
     {
-        if (CreatureData const* data = sObjectMgr.GetCreatureData(pCreature->GetDBTableGUIDLow()))
+        if (CreatureData const* data = sObjectMgr.GetCreatureData(pCreature->GetGUIDLow()))
         {
             const_cast<CreatureData*>(data)->posX = x;
             const_cast<CreatureData*>(data)->posY = y;
@@ -1875,7 +1871,7 @@ bool ChatHandler::HandleNpcMoveCommand(char* args)
         pCreature->GetMotionMaster()->Initialize();
         if (pCreature->isAlive())                            // dead creature will reset movement generator at respawn
         {
-            pCreature->setDeathState(JUST_DIED);
+            pCreature->SetDeathState(JUST_DIED);
             pCreature->Respawn();
         }
     }
@@ -1912,9 +1908,9 @@ bool ChatHandler::HandleNpcSetMoveTypeCommand(char* args)
     if (!ExtractUInt32(&args, lowguid))                     // case .setmovetype $move_type (with selected creature)
     {
         pCreature = getSelectedCreature();
-        if (!pCreature || pCreature->isPet())
+        if (!pCreature || !pCreature->HasStaticDBSpawnData())
             return false;
-        lowguid = pCreature->GetDBTableGUIDLow();
+        lowguid = pCreature->GetGUIDLow();
     }
     else                                                    // case .setmovetype #creature_guid $move_type (with guid)
     {
@@ -1940,6 +1936,9 @@ bool ChatHandler::HandleNpcSetMoveTypeCommand(char* args)
 
     MovementGeneratorType move_type;
     char* type_str = ExtractLiteralArg(&args);
+    if (!type_str)
+        return false;
+
     if (strncmp(type_str, "stay", strlen(type_str)) == 0)
         move_type = IDLE_MOTION_TYPE;
     else if (strncmp(type_str, "random", strlen(type_str)) == 0)
@@ -1966,7 +1965,7 @@ bool ChatHandler::HandleNpcSetMoveTypeCommand(char* args)
         pCreature->GetMotionMaster()->Initialize();
         if (pCreature->isAlive())                            // dead creature will reset movement generator at respawn
         {
-            pCreature->setDeathState(JUST_DIED);
+            pCreature->SetDeathState(JUST_DIED);
             pCreature->Respawn();
         }
         pCreature->SaveToDB();
@@ -1990,7 +1989,7 @@ bool ChatHandler::HandleNpcSetModelCommand(char* args)
 
     Creature *pCreature = getSelectedCreature();
 
-    if (!pCreature || pCreature->isPet())
+    if (!pCreature || pCreature->IsPet())
     {
         SendSysMessage(LANG_SELECT_CREATURE);
         SetSentErrorMessage(true);
@@ -2000,7 +1999,8 @@ bool ChatHandler::HandleNpcSetModelCommand(char* args)
     pCreature->SetDisplayId(displayId);
     pCreature->SetNativeDisplayId(displayId);
 
-    pCreature->SaveToDB();
+    if (pCreature->HasStaticDBSpawnData())
+        pCreature->SaveToDB();
 
     return true;
 }
@@ -2065,7 +2065,7 @@ bool ChatHandler::HandleNpcSpawnDistCommand(char* args)
     uint32 u_guidlow = 0;
 
     if (pCreature)
-        u_guidlow = pCreature->GetDBTableGUIDLow();
+        u_guidlow = pCreature->GetGUIDLow();
     else
         return false;
 
@@ -2074,7 +2074,7 @@ bool ChatHandler::HandleNpcSpawnDistCommand(char* args)
     pCreature->GetMotionMaster()->Initialize();
     if (pCreature->isAlive())                                // dead creature will reset movement generator at respawn
     {
-        pCreature->setDeathState(JUST_DIED);
+        pCreature->SetDeathState(JUST_DIED);
         pCreature->Respawn();
     }
 
@@ -2097,7 +2097,7 @@ bool ChatHandler::HandleNpcSpawnTimeCommand(char* args)
         return false;
     }
 
-    uint32 u_guidlow = pCreature->GetDBTableGUIDLow();
+    uint32 u_guidlow = pCreature->GetGUIDLow();
 
     WorldDatabase.PExecuteLog("UPDATE creature SET spawntimesecs=%i WHERE guid=%u", stime, u_guidlow);
     pCreature->SetRespawnDelay(stime);
@@ -2165,7 +2165,7 @@ bool ChatHandler::HandleNpcUnFollowCommand(char* /*args*/)
 bool ChatHandler::HandleNpcTameCommand(char* /*args*/)
 {
     Creature *creatureTarget = getSelectedCreature ();
-    if (!creatureTarget || creatureTarget->isPet ())
+    if (!creatureTarget || creatureTarget->IsPet ())
     {
         PSendSysMessage (LANG_SELECT_CREATURE);
         SetSentErrorMessage (true);
@@ -2174,57 +2174,14 @@ bool ChatHandler::HandleNpcTameCommand(char* /*args*/)
 
     Player *player = m_session->GetPlayer ();
 
-    if (player->GetPetGUID())
+    if (!player->GetPetGuid().IsEmpty())
     {
         SendSysMessage(LANG_YOU_ALREADY_HAVE_PET);
         SetSentErrorMessage(true);
         return false;
     }
 
-    CreatureInfo const* cInfo = creatureTarget->GetCreatureInfo();
-
-    if (!cInfo->isTameable(player->CanTameExoticPets()))
-    {
-        PSendSysMessage(LANG_CREATURE_NON_TAMEABLE,cInfo->Entry);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    // Everything looks OK, create new pet
-    Pet* pet = player->CreateTamedPetFrom (creatureTarget);
-    if (!pet)
-    {
-        PSendSysMessage (LANG_CREATURE_NON_TAMEABLE,cInfo->Entry);
-        SetSentErrorMessage (true);
-        return false;
-    }
-
-    // place pet before player
-    float x,y,z;
-    player->GetClosePoint(x, y, z, creatureTarget->GetObjectBoundingRadius(), CONTACT_DISTANCE);
-    pet->Relocate (x,y,z,M_PI_F-player->GetOrientation ());
-
-    // set pet to defensive mode by default (some classes can't control controlled pets in fact).
-    pet->GetCharmInfo()->SetReactState(REACT_DEFENSIVE);
-
-    // calculate proper level
-    uint32 level = (creatureTarget->getLevel() < (player->getLevel() - 5)) ? (player->getLevel() - 5) : creatureTarget->getLevel();
-
-    // prepare visual effect for levelup
-    pet->SetUInt32Value(UNIT_FIELD_LEVEL, level - 1);
-
-    // add to world
-    pet->GetMap()->Add((Creature*)pet);
-
-    // visual effect for levelup
-    pet->SetUInt32Value(UNIT_FIELD_LEVEL, level);
-
-    // caster have pet now
-    player->SetPet(pet);
-
-    pet->SavePetToDB(PET_SAVE_AS_CURRENT);
-    player->PetSpellInitialize();
-
+    player->CastSpell(creatureTarget, 13481, true);         // Tame Beast, triggered effect
     return true;
 }
 //npc phasemask handling
@@ -2252,7 +2209,7 @@ bool ChatHandler::HandleNpcSetPhaseCommand(char* args)
 
     pCreature->SetPhaseMask(phasemask,true);
 
-    if (!pCreature->isPet())
+    if (pCreature->HasStaticDBSpawnData())
         pCreature->SaveToDB();
 
     return true;
@@ -2269,7 +2226,7 @@ bool ChatHandler::HandleNpcSetDeathStateCommand(char* args)
     }
 
     Creature* pCreature = getSelectedCreature();
-    if (!pCreature || pCreature->isPet())
+    if (!pCreature || !pCreature->HasStaticDBSpawnData())
     {
         SendSysMessage(LANG_SELECT_CREATURE);
         SetSentErrorMessage(true);
@@ -2310,9 +2267,8 @@ bool ChatHandler::HandleNpcNameCommand(char* /*args*/)
         }
     }
 
-    uint64 guid;
-    guid = m_session->GetPlayer()->GetSelection();
-    if (guid == 0)
+    ObjectGuid guid = m_session->GetPlayer()->GetSelectionGuid();
+    if (guid.IsEmpty())
     {
         SendSysMessage(LANG_NO_SELECTION);
         return true;
@@ -2358,9 +2314,9 @@ bool ChatHandler::HandleNpcSubNameCommand(char* /*args*/)
             return false;
         }
     }
-    uint64 guid;
-    guid = m_session->GetPlayer()->GetSelection();
-    if (guid == 0)
+
+    ObjectGuid guid = m_session->GetPlayer()->GetSelectionGuid();
+    if (guid.IsEmpty())
     {
         SendSysMessage(LANG_NO_SELECTION);
         return true;
@@ -2427,7 +2383,7 @@ bool ChatHandler::HandleDeMorphCommand(char* /*args*/)
 
 
     // check online security
-    else if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target, 0))
+    else if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target))
         return false;
 
     target->DeMorph();
@@ -2448,7 +2404,7 @@ bool ChatHandler::HandleModifyMorphCommand(char* args)
         target = m_session->GetPlayer();
 
     // check online security
-    else if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target, 0))
+    else if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target))
         return false;
 
     target->SetDisplayId(display_id);
@@ -2471,7 +2427,7 @@ bool ChatHandler::HandleKickPlayerCommand(char *args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     // send before target pointer invalidate
@@ -2493,7 +2449,7 @@ bool ChatHandler::HandleModifyPhaseCommand(char* args)
         target = m_session->GetPlayer();
 
     // check online security
-    else if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target, 0))
+    else if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target))
         return false;
 
     target->SetPhaseMask(phasemask,true);
@@ -2505,7 +2461,7 @@ bool ChatHandler::HandleModifyPhaseCommand(char* args)
 bool ChatHandler::HandlePInfoCommand(char* args)
 {
     Player* target;
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&args, &target, &target_guid, &target_name))
         return false;
@@ -2520,7 +2476,7 @@ bool ChatHandler::HandlePInfoCommand(char* args)
     if (target)
     {
         // check online security
-        if (HasLowerSecurity(target, 0))
+        if (HasLowerSecurity(target))
             return false;
 
         accId = target->GetSession()->GetAccountId();
@@ -2537,7 +2493,7 @@ bool ChatHandler::HandlePInfoCommand(char* args)
             return false;
 
         //                                                     0          1      2      3
-        QueryResult *result = CharacterDatabase.PQuery("SELECT totaltime, level, money, account FROM characters WHERE guid = '%u'", GUID_LOPART(target_guid));
+        QueryResult *result = CharacterDatabase.PQuery("SELECT totaltime, level, money, account FROM characters WHERE guid = '%u'", target_guid.GetCounter());
         if (!result)
             return false;
 
@@ -2577,7 +2533,7 @@ bool ChatHandler::HandlePInfoCommand(char* args)
 
     std::string nameLink = playerLink(target_name);
 
-    PSendSysMessage(LANG_PINFO_ACCOUNT, (target?"":GetMangosString(LANG_OFFLINE)), nameLink.c_str(), GUID_LOPART(target_guid), username.c_str(), accId, security, last_ip.c_str(), last_login.c_str(), latency);
+    PSendSysMessage(LANG_PINFO_ACCOUNT, (target?"":GetMangosString(LANG_OFFLINE)), nameLink.c_str(), target_guid.GetCounter(), username.c_str(), accId, security, last_ip.c_str(), last_login.c_str(), latency);
 
     std::string timeStr = secsToTimeString(total_player_time,true,true);
     uint32 gold = money /GOLD;
@@ -2594,7 +2550,7 @@ void ChatHandler::ShowTicket(GMTicket const* ticket)
     std::string lastupdated = TimeToTimestampStr(ticket->GetLastUpdate());
 
     std::string name;
-    if (!sObjectMgr.GetPlayerNameByGUID(ObjectGuid(HIGHGUID_PLAYER, ticket->GetPlayerLowGuid()), name))
+    if (!sObjectMgr.GetPlayerNameByGUID(ticket->GetPlayerGuid(), name))
         name = GetMangosString(LANG_UNKNOWN);
 
     std::string nameLink = playerLink(name);
@@ -2670,7 +2626,7 @@ bool ChatHandler::HandleTicketCommand(char* args)
             if (num == 0)
                 return false;
 
-            // mgr numbering tickets start from 0 
+            // mgr numbering tickets start from 0
             ticket = sTicketMgr.GetGMTicketByOrderPos(num-1);
 
             if (!ticket)
@@ -2682,13 +2638,13 @@ bool ChatHandler::HandleTicketCommand(char* args)
         }
         else
         {
-            uint64 target_guid;
+            ObjectGuid target_guid;
             std::string target_name;
             if (!ExtractPlayerTarget(&args, NULL, &target_guid, &target_name))
                 return false;
 
             // ticket respond $char_name
-            ticket = sTicketMgr.GetGMTicket(GUID_LOPART(target_guid));
+            ticket = sTicketMgr.GetGMTicket(target_guid);
 
             if (!ticket)
             {
@@ -2704,7 +2660,7 @@ bool ChatHandler::HandleTicketCommand(char* args)
 
         ticket->SetResponseText(args);
 
-        if (Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, ticket->GetPlayerLowGuid())))
+        if (Player* pl = sObjectMgr.GetPlayer(ticket->GetPlayerGuid()))
             pl->GetSession()->SendGMResponse(ticket);
 
         return true;
@@ -2717,7 +2673,7 @@ bool ChatHandler::HandleTicketCommand(char* args)
         if (num == 0)
             return false;
 
-        // mgr numbering tickets start from 0 
+        // mgr numbering tickets start from 0
         GMTicket* ticket = sTicketMgr.GetGMTicketByOrderPos(num-1);
         if (!ticket)
         {
@@ -2730,13 +2686,13 @@ bool ChatHandler::HandleTicketCommand(char* args)
         return true;
     }
 
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&px, NULL, &target_guid, &target_name))
         return false;
 
     // ticket $char_name
-    GMTicket* ticket = sTicketMgr.GetGMTicket(GUID_LOPART(target_guid));
+    GMTicket* ticket = sTicketMgr.GetGMTicket(target_guid);
     if (!ticket)
     {
         PSendSysMessage(LANG_COMMAND_TICKETNOTEXIST_NAME, target_name.c_str());
@@ -2772,7 +2728,7 @@ bool ChatHandler::HandleDelTicketCommand(char *args)
         if (num ==0)
             return false;
 
-        // mgr numbering tickets start from 0 
+        // mgr numbering tickets start from 0
         GMTicket* ticket = sTicketMgr.GetGMTicketByOrderPos(num-1);
 
         if (!ticket)
@@ -2782,12 +2738,12 @@ bool ChatHandler::HandleDelTicketCommand(char *args)
             return false;
         }
 
-        uint32 lowguid = ticket->GetPlayerLowGuid();
+        ObjectGuid guid = ticket->GetPlayerGuid();
 
-        sTicketMgr.Delete(lowguid);
+        sTicketMgr.Delete(guid);
 
         //notify player
-        if (Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, lowguid)))
+        if (Player* pl = sObjectMgr.GetPlayer(guid))
         {
             pl->GetSession()->SendGMTicketGetTicket(0x0A);
             PSendSysMessage(LANG_COMMAND_TICKETPLAYERDEL, GetNameLink(pl).c_str());
@@ -2799,13 +2755,13 @@ bool ChatHandler::HandleDelTicketCommand(char *args)
     }
 
     Player* target;
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&px, &target, &target_guid, &target_name))
         return false;
 
     // delticket $char_name
-    sTicketMgr.Delete(GUID_LOPART(target_guid));
+    sTicketMgr.Delete(target_guid);
 
     // notify players about ticket deleting
     if (target)
@@ -2861,12 +2817,13 @@ bool ChatHandler::HandleWpAddCommand(char* args)
         // No GUID provided
         // -> Player must have selected a creature
 
-        if (!target || target->isPet())
+        if (!target || !target->HasStaticDBSpawnData())
         {
             SendSysMessage(LANG_SELECT_CREATURE);
             SetSentErrorMessage(true);
             return false;
         }
+
         if (target->GetEntry() == VISUAL_WAYPOINT)
         {
             DEBUG_LOG("DEBUG: HandleWpAddCommand - target->GetEntry() == VISUAL_WAYPOINT (1) ");
@@ -2920,7 +2877,7 @@ bool ChatHandler::HandleWpAddCommand(char* args)
         }
         else
         {
-            lowguid = target->GetDBTableGUIDLow();
+            lowguid = target->GetGUIDLow();
         }
     }
     else
@@ -2945,7 +2902,7 @@ bool ChatHandler::HandleWpAddCommand(char* args)
         }
 
         target = m_session->GetPlayer()->GetMap()->GetCreature(ObjectGuid(HIGHGUID_UNIT, data->id, lowguid));
-        if (!target || target->isPet())
+        if (!target || target->IsPet())
         {
             PSendSysMessage(LANG_WAYPOINT_CREATNOTFOUND, lowguid);
             SetSentErrorMessage(true);
@@ -2968,13 +2925,13 @@ bool ChatHandler::HandleWpAddCommand(char* args)
         target->GetMotionMaster()->Initialize();
         if (target->isAlive())                               // dead creature will reset movement generator at respawn
         {
-            target->setDeathState(JUST_DIED);
+            target->SetDeathState(JUST_DIED);
             target->Respawn();
         }
         target->SaveToDB();
     }
     else
-        WorldDatabase.PExecuteLog("UPDATE creature SET MovementType = '%u' WHERE guid = '%u'", WAYPOINT_MOTION_TYPE,lowguid);
+        WorldDatabase.PExecuteLog("UPDATE creature SET MovementType=%u WHERE guid=%u", WAYPOINT_MOTION_TYPE,lowguid);
 
     PSendSysMessage(LANG_WAYPOINT_ADDED, point, lowguid);
 
@@ -3184,7 +3141,7 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
             npcCreature->GetMotionMaster()->Initialize();
             if (npcCreature->isAlive())                      // dead creature will reset movement generator at respawn
             {
-                npcCreature->setDeathState(JUST_DIED);
+                npcCreature->SetDeathState(JUST_DIED);
                 npcCreature->Respawn();
             }
         }
@@ -3192,29 +3149,21 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
         // create the waypoint creature
         wpGuid = 0;
         Creature* wpCreature = new Creature;
-        if (!wpCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), VISUAL_WAYPOINT,0))
+
+        CreatureCreatePos pos(chr, chr->GetOrientation());
+
+        if (!wpCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), pos, VISUAL_WAYPOINT))
         {
             PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, VISUAL_WAYPOINT);
             delete wpCreature;
+            return false;
         }
-        else
-        {
-            wpCreature->Relocate(chr->GetPositionX(), chr->GetPositionY(), chr->GetPositionZ(), chr->GetOrientation());
 
-            if (!wpCreature->IsPositionValid())
-            {
-                sLog.outError("Creature (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",wpCreature->GetGUIDLow(),wpCreature->GetEntry(),wpCreature->GetPositionX(),wpCreature->GetPositionY());
-                delete wpCreature;
-            }
-            else
-            {
-                wpCreature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
-                // To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
-                wpCreature->LoadFromDB(wpCreature->GetDBTableGUIDLow(), map);
-                map->Add(wpCreature);
-                wpGuid = wpCreature->GetGUIDLow();
-            }
-        }
+        wpCreature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
+        // To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
+        wpCreature->LoadFromDB(wpCreature->GetGUIDLow(), map);
+        map->Add(wpCreature);
+        wpGuid = wpCreature->GetGUIDLow();
 
         sWaypointMgr.AddAfterNode(lowguid, point, chr->GetPositionX(), chr->GetPositionY(), chr->GetPositionZ(), 0, 0, wpGuid);
 
@@ -3272,7 +3221,7 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
             npcCreature->GetMotionMaster()->Initialize();
             if (npcCreature->isAlive())                      // dead creature will reset movement generator at respawn
             {
-                npcCreature->setDeathState(JUST_DIED);
+                npcCreature->SetDeathState(JUST_DIED);
                 npcCreature->Respawn();
             }
             npcCreature->SaveToDB();
@@ -3312,25 +3261,19 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
                 wpCreature->AddObjectToRemoveList();
                 // re-create
                 Creature* wpCreature2 = new Creature;
-                if (!wpCreature2->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), VISUAL_WAYPOINT, 0))
+
+                CreatureCreatePos pos(chr, chr->GetOrientation());
+
+                if (!wpCreature2->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), pos, VISUAL_WAYPOINT))
                 {
                     PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, VISUAL_WAYPOINT);
                     delete wpCreature2;
                     return false;
                 }
 
-                wpCreature2->Relocate(chr->GetPositionX(), chr->GetPositionY(), chr->GetPositionZ(), chr->GetOrientation());
-
-                if (!wpCreature2->IsPositionValid())
-                {
-                    sLog.outError("Creature (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",wpCreature2->GetGUIDLow(),wpCreature2->GetEntry(),wpCreature2->GetPositionX(),wpCreature2->GetPositionY());
-                    delete wpCreature2;
-                    return false;
-                }
-
                 wpCreature2->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
                 // To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
-                wpCreature2->LoadFromDB(wpCreature2->GetDBTableGUIDLow(), map);
+                wpCreature2->LoadFromDB(wpCreature2->GetGUIDLow(), map);
                 map->Add(wpCreature2);
                 //npcCreature->GetMap()->Add(wpCreature2);
             }
@@ -3342,7 +3285,7 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
                 npcCreature->GetMotionMaster()->Initialize();
                 if (npcCreature->isAlive())                  // dead creature will reset movement generator at respawn
                 {
-                    npcCreature->setDeathState(JUST_DIED);
+                    npcCreature->SetDeathState(JUST_DIED);
                     npcCreature->Respawn();
                 }
             }
@@ -3376,7 +3319,7 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
         npcCreature->GetMotionMaster()->Initialize();
         if (npcCreature->isAlive())                          // dead creature will reset movement generator at respawn
         {
-            npcCreature->setDeathState(JUST_DIED);
+            npcCreature->SetDeathState(JUST_DIED);
             npcCreature->Respawn();
         }
     }
@@ -3479,7 +3422,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
         }
     }
 
-    uint32 lowguid = target->GetDBTableGUIDLow();
+    uint32 lowguid = target->GetGUIDLow();
 
     std::string show = show_str;
     uint32 Maxpoint;
@@ -3583,7 +3526,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
                 {
                     PSendSysMessage(LANG_WAYPOINT_NOTREMOVED, wpGuid);
                     hasError = true;
-                    WorldDatabase.PExecuteLog("DELETE FROM creature WHERE guid = '%u'", wpGuid);
+                    WorldDatabase.PExecuteLog("DELETE FROM creature WHERE guid=%u", wpGuid);
                 }
                 else
                 {
@@ -3603,32 +3546,18 @@ bool ChatHandler::HandleWpShowCommand(char* args)
 
         do
         {
-            Field *fields = result->Fetch();
-            uint32 point    = fields[0].GetUInt32();
-            float x         = fields[1].GetFloat();
-            float y         = fields[2].GetFloat();
-            float z         = fields[3].GetFloat();
-
-            uint32 id = VISUAL_WAYPOINT;
-
             Player *chr = m_session->GetPlayer();
             Map *map = chr->GetMap();
-            float o = chr->GetOrientation();
+
+            Field *fields = result->Fetch();
+            uint32 point    = fields[0].GetUInt32();
+            CreatureCreatePos pos(map, fields[1].GetFloat(), fields[2].GetFloat(), fields[3].GetFloat(), chr->GetOrientation(), chr->GetPhaseMaskForSpawn());
 
             Creature* wpCreature = new Creature;
-            if (!wpCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id, 0))
-            {
-                PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, id);
-                delete wpCreature;
-                delete result;
-                return false;
-            }
 
-            wpCreature->Relocate(x, y, z, o);
-
-            if (!wpCreature->IsPositionValid())
+            if (!wpCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), pos, VISUAL_WAYPOINT))
             {
-                sLog.outError("Creature (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",wpCreature->GetGUIDLow(),wpCreature->GetEntry(),wpCreature->GetPositionX(),wpCreature->GetPositionY());
+                PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, VISUAL_WAYPOINT);
                 delete wpCreature;
                 delete result;
                 return false;
@@ -3637,11 +3566,11 @@ bool ChatHandler::HandleWpShowCommand(char* args)
             wpCreature->SetVisibility(VISIBILITY_OFF);
             DEBUG_LOG("DEBUG: UPDATE creature_movement SET wpguid = '%u", wpCreature->GetGUIDLow());
             // set "wpguid" column to the visual waypoint
-            WorldDatabase.PExecuteLog("UPDATE creature_movement SET wpguid = '%u' WHERE id = '%u' and point = '%u'", wpCreature->GetGUIDLow(), lowguid, point);
+            WorldDatabase.PExecuteLog("UPDATE creature_movement SET wpguid=%u WHERE id=%u and point=%u", wpCreature->GetGUIDLow(), lowguid, point);
 
             wpCreature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
             // To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
-            wpCreature->LoadFromDB(wpCreature->GetDBTableGUIDLow(),map);
+            wpCreature->LoadFromDB(wpCreature->GetGUIDLow(),map);
             map->Add(wpCreature);
             //wpCreature->GetMap()->Add(wpCreature);
         } while (result->NextRow());
@@ -3663,37 +3592,24 @@ bool ChatHandler::HandleWpShowCommand(char* args)
             return false;
         }
 
-        Field *fields = result->Fetch();
-        float x         = fields[0].GetFloat();
-        float y         = fields[1].GetFloat();
-        float z         = fields[2].GetFloat();
-        uint32 id = VISUAL_WAYPOINT;
-
         Player *chr = m_session->GetPlayer();
-        float o = chr->GetOrientation();
         Map *map = chr->GetMap();
 
+        Field *fields = result->Fetch();
+        CreatureCreatePos pos(map, fields[0].GetFloat(), fields[1].GetFloat(), fields[2].GetFloat(), chr->GetOrientation(), chr->GetPhaseMaskForSpawn());
+
         Creature* pCreature = new Creature;
-        if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT),map, chr->GetPhaseMaskForSpawn(), id, 0))
-        {
-            PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, id);
-            delete pCreature;
-            delete result;
-            return false;
-        }
 
-        pCreature->Relocate(x, y, z, o);
-
-        if (!pCreature->IsPositionValid())
+        if (!pCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), pos, VISUAL_WAYPOINT))
         {
-            sLog.outError("Creature (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",pCreature->GetGUIDLow(),pCreature->GetEntry(),pCreature->GetPositionX(),pCreature->GetPositionY());
+            PSendSysMessage(LANG_WAYPOINT_VP_NOTCREATED, VISUAL_WAYPOINT);
             delete pCreature;
             delete result;
             return false;
         }
 
         pCreature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
-        pCreature->LoadFromDB(pCreature->GetDBTableGUIDLow(), map);
+        pCreature->LoadFromDB(pCreature->GetGUIDLow(), map);
         map->Add(pCreature);
         //player->PlayerTalkClass->SendPointOfInterest(x, y, 6, 6, 0, "First Waypoint");
 
@@ -3723,37 +3639,25 @@ bool ChatHandler::HandleWpShowCommand(char* args)
             SetSentErrorMessage(true);
             return false;
         }
-        Field *fields = result->Fetch();
-        float x         = fields[0].GetFloat();
-        float y         = fields[1].GetFloat();
-        float z         = fields[2].GetFloat();
-        uint32 id = VISUAL_WAYPOINT;
 
         Player *chr = m_session->GetPlayer();
-        float o = chr->GetOrientation();
         Map *map = chr->GetMap();
 
+        Field *fields = result->Fetch();
+        CreatureCreatePos pos(map, fields[0].GetFloat(), fields[1].GetFloat(), fields[2].GetFloat(), chr->GetOrientation(), chr->GetPhaseMaskForSpawn());
+
         Creature* pCreature = new Creature;
-        if (!pCreature->Create(sObjectMgr.GenerateLowGuid(HIGHGUID_UNIT), map, chr->GetPhaseMaskForSpawn(), id, 0))
-        {
-            PSendSysMessage(LANG_WAYPOINT_NOTCREATED, id);
-            delete pCreature;
-            delete result;
-            return false;
-        }
 
-        pCreature->Relocate(x, y, z, o);
-
-        if (!pCreature->IsPositionValid())
+        if (!pCreature->Create(map->GenerateLocalLowGuid(HIGHGUID_UNIT), pos, VISUAL_WAYPOINT))
         {
-            sLog.outError("Creature (guidlow %d, entry %d) not created. Suggested coordinates isn't valid (X: %f Y: %f)",pCreature->GetGUIDLow(),pCreature->GetEntry(),pCreature->GetPositionX(),pCreature->GetPositionY());
+            PSendSysMessage(LANG_WAYPOINT_NOTCREATED, VISUAL_WAYPOINT);
             delete pCreature;
             delete result;
             return false;
         }
 
         pCreature->SaveToDB(map->GetId(), (1 << map->GetSpawnMode()), chr->GetPhaseMaskForSpawn());
-        pCreature->LoadFromDB(pCreature->GetDBTableGUIDLow(), map);
+        pCreature->LoadFromDB(pCreature->GetGUIDLow(), map);
         map->Add(pCreature);
         //player->PlayerTalkClass->SendPointOfInterest(x, y, 6, 6, 0, "Last Waypoint");
         // Cleanup memory
@@ -3763,7 +3667,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
 
     if (show == "off")
     {
-        QueryResult *result = WorldDatabase.PQuery("SELECT guid FROM creature WHERE id = '%d'", VISUAL_WAYPOINT);
+        QueryResult *result = WorldDatabase.PQuery("SELECT guid FROM creature WHERE id=%u", VISUAL_WAYPOINT);
         if (!result)
         {
             SendSysMessage(LANG_WAYPOINT_VP_NOTFOUND);
@@ -3780,7 +3684,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
             {
                 PSendSysMessage(LANG_WAYPOINT_NOTREMOVED, wpGuid);
                 hasError = true;
-                WorldDatabase.PExecuteLog("DELETE FROM creature WHERE guid = '%u'", wpGuid);
+                WorldDatabase.PExecuteLog("DELETE FROM creature WHERE guid=%u", wpGuid);
             }
             else
             {
@@ -3789,7 +3693,7 @@ bool ChatHandler::HandleWpShowCommand(char* args)
             }
         }while(result->NextRow());
         // set "wpguid" column to "empty" - no visual waypoint spawned
-        WorldDatabase.PExecuteLog("UPDATE creature_movement SET wpguid = '0' WHERE wpguid <> '0'");
+        WorldDatabase.PExecuteLog("UPDATE creature_movement SET wpguid=0 WHERE wpguid <> 0");
 
         if (hasError)
         {
@@ -3959,7 +3863,7 @@ bool ChatHandler::HandleWpImportCommand(char *args)
 bool ChatHandler::HandleCharacterRenameCommand(char* args)
 {
     Player* target;
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&args, &target, &target_guid, &target_name))
         return false;
@@ -3967,7 +3871,7 @@ bool ChatHandler::HandleCharacterRenameCommand(char* args)
     if (target)
     {
         // check online security
-        if (HasLowerSecurity(target, 0))
+        if (HasLowerSecurity(target))
             return false;
 
         PSendSysMessage(LANG_RENAME_PLAYER, GetNameLink(target).c_str());
@@ -3982,8 +3886,8 @@ bool ChatHandler::HandleCharacterRenameCommand(char* args)
 
         std::string oldNameLink = playerLink(target_name);
 
-        PSendSysMessage(LANG_RENAME_PLAYER_GUID, oldNameLink.c_str(), GUID_LOPART(target_guid));
-        CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '1' WHERE guid = '%u'", GUID_LOPART(target_guid));
+        PSendSysMessage(LANG_RENAME_PLAYER_GUID, oldNameLink.c_str(), target_guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '1' WHERE guid = '%u'", target_guid.GetCounter());
     }
 
     return true;
@@ -3993,7 +3897,7 @@ bool ChatHandler::HandleCharacterRenameCommand(char* args)
 bool ChatHandler::HandleCharacterCustomizeCommand(char* args)
 {
     Player* target;
-    uint64 target_guid;
+    ObjectGuid target_guid;
     std::string target_name;
     if (!ExtractPlayerTarget(&args, &target, &target_guid, &target_name))
         return false;
@@ -4008,8 +3912,8 @@ bool ChatHandler::HandleCharacterCustomizeCommand(char* args)
     {
         std::string oldNameLink = playerLink(target_name);
 
-        PSendSysMessage(LANG_CUSTOMIZE_PLAYER_GUID, oldNameLink.c_str(), GUID_LOPART(target_guid));
-        CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '8' WHERE guid = '%u'", GUID_LOPART(target_guid));
+        PSendSysMessage(LANG_CUSTOMIZE_PLAYER_GUID, oldNameLink.c_str(), target_guid.GetCounter());
+        CharacterDatabase.PExecute("UPDATE characters SET at_login = at_login | '8' WHERE guid = '%u'", target_guid.GetCounter());
     }
 
     return true;
@@ -4062,7 +3966,7 @@ bool ChatHandler::HandleHonorAddCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     float amount = (float)atof(args);
@@ -4081,7 +3985,7 @@ bool ChatHandler::HandleHonorAddKillCommand(char* /*args*/)
     }
 
     // check online security
-    if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target, 0))
+    if (target->GetTypeId() == TYPEID_PLAYER && HasLowerSecurity((Player*)target))
         return false;
 
     m_session->GetPlayer()->RewardHonor(target, 1);
@@ -4099,7 +4003,7 @@ bool ChatHandler::HandleHonorUpdateCommand(char* /*args*/)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     target->UpdateHonorFields();
@@ -4123,10 +4027,12 @@ bool ChatHandler::HandleLookupEventCommand(char* args)
     uint32 counter = 0;
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
-    GameEventMgr::ActiveEvents const& activeEvents = sGameEventMgr.GetActiveEventList();
 
-    for(uint32 id = 0; id < events.size(); ++id)
+    for(uint32 id = 1; id < events.size(); ++id)
     {
+        if (!sGameEventMgr.IsValidEvent(id))
+            continue;
+
         GameEventData const& eventData = events[id];
 
         std::string descr = eventData.description;
@@ -4135,7 +4041,7 @@ bool ChatHandler::HandleLookupEventCommand(char* args)
 
         if (Utf8FitTo(descr, wnamepart))
         {
-            char const* active = activeEvents.find(id) != activeEvents.end() ? GetMangosString(LANG_ACTIVE) : "";
+            char const* active = sGameEventMgr.IsActiveEvent(id) ? GetMangosString(LANG_ACTIVE) : "";
 
             if (m_session)
                 PSendSysMessage(LANG_EVENT_ENTRY_LIST_CHAT, id, id, eventData.description.c_str(), active);
@@ -4161,7 +4067,6 @@ bool ChatHandler::HandleEventListCommand(char* args)
         all = true;
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
-    GameEventMgr::ActiveEvents const& activeEvents = sGameEventMgr.GetActiveEventList();
 
     char const* active = GetMangosString(LANG_ACTIVE);
     char const* inactive = GetMangosString(LANG_FACTION_INACTIVE);
@@ -4169,7 +4074,10 @@ bool ChatHandler::HandleEventListCommand(char* args)
 
     for (uint32 event_id = 0; event_id < events.size(); ++event_id)
     {
-        if (activeEvents.find(event_id) == activeEvents.end())
+        if (!sGameEventMgr.IsValidEvent(event_id))
+            continue;
+
+        if (!sGameEventMgr.IsActiveEvent(event_id))
         {
             if (!all)
                 continue;
@@ -4206,7 +4114,7 @@ bool ChatHandler::HandleEventInfoCommand(char* args)
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
 
-    if (event_id >=events.size())
+    if (!sGameEventMgr.IsValidEvent(event_id))
     {
         SendSysMessage(LANG_EVENT_NOT_EXIST);
         SetSentErrorMessage(true);
@@ -4214,16 +4122,8 @@ bool ChatHandler::HandleEventInfoCommand(char* args)
     }
 
     GameEventData const& eventData = events[event_id];
-    if (!eventData.isValid())
-    {
-        SendSysMessage(LANG_EVENT_NOT_EXIST);
-        SetSentErrorMessage(true);
-        return false;
-    }
 
-    GameEventMgr::ActiveEvents const& activeEvents = sGameEventMgr.GetActiveEventList();
-    bool active = activeEvents.find(event_id) != activeEvents.end();
-    char const* activeStr = active ? GetMangosString(LANG_ACTIVE) : "";
+    char const* activeStr = sGameEventMgr.IsActiveEvent(event_id) ? GetMangosString(LANG_ACTIVE) : "";
 
     std::string startTimeStr = TimeToTimestampStr(eventData.start);
     std::string endTimeStr = TimeToTimestampStr(eventData.end);
@@ -4253,7 +4153,7 @@ bool ChatHandler::HandleEventStartCommand(char* args)
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
 
-    if (event_id < 1 || event_id >=(int32)events.size())
+    if (!sGameEventMgr.IsValidEvent(event_id))
     {
         SendSysMessage(LANG_EVENT_NOT_EXIST);
         SetSentErrorMessage(true);
@@ -4268,8 +4168,7 @@ bool ChatHandler::HandleEventStartCommand(char* args)
         return false;
     }
 
-    GameEventMgr::ActiveEvents const& activeEvents = sGameEventMgr.GetActiveEventList();
-    if (activeEvents.find(event_id) != activeEvents.end())
+    if (sGameEventMgr.IsActiveEvent(event_id))
     {
         PSendSysMessage(LANG_EVENT_ALREADY_ACTIVE,event_id);
         SetSentErrorMessage(true);
@@ -4293,7 +4192,7 @@ bool ChatHandler::HandleEventStopCommand(char* args)
 
     GameEventMgr::GameEventDataMap const& events = sGameEventMgr.GetEventMap();
 
-    if (event_id < 1 || event_id >=(int32)events.size())
+    if (!sGameEventMgr.IsValidEvent(event_id))
     {
         SendSysMessage(LANG_EVENT_NOT_EXIST);
         SetSentErrorMessage(true);
@@ -4308,9 +4207,7 @@ bool ChatHandler::HandleEventStopCommand(char* args)
         return false;
     }
 
-    GameEventMgr::ActiveEvents const& activeEvents = sGameEventMgr.GetActiveEventList();
-
-    if (activeEvents.find(event_id) == activeEvents.end())
+    if (!sGameEventMgr.IsActiveEvent(event_id))
     {
         PSendSysMessage(LANG_EVENT_NOT_ACTIVE,event_id);
         SetSentErrorMessage(true);
@@ -4329,7 +4226,7 @@ bool ChatHandler::HandleCombatStopCommand(char* args)
         return false;
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     target->CombatStop();
@@ -4685,6 +4582,292 @@ bool ChatHandler::LookupPlayerSearchCommand(QueryResult* result, uint32* limit)
     return true;
 }
 
+void ChatHandler::ShowPoolListHelper(uint16 pool_id)
+{
+    PoolTemplateData const& pool_template = sPoolMgr.GetPoolTemplate(pool_id);
+    if (m_session)
+        PSendSysMessage(LANG_POOL_ENTRY_LIST_CHAT,
+            pool_id, pool_id, pool_template.description.c_str(), pool_template.AutoSpawn ? 1 : 0, pool_template.MaxLimit,
+            sPoolMgr.GetPoolCreatures(pool_id).size(), sPoolMgr.GetPoolGameObjects(pool_id).size(), sPoolMgr.GetPoolPools(pool_id).size());
+    else
+        PSendSysMessage(LANG_POOL_ENTRY_LIST_CONSOLE,
+            pool_id, pool_template.description.c_str(), pool_template.AutoSpawn ? 1 : 0, pool_template.MaxLimit,
+            sPoolMgr.GetPoolCreatures(pool_id).size(), sPoolMgr.GetPoolGameObjects(pool_id).size(), sPoolMgr.GetPoolPools(pool_id).size());
+}
+
+bool ChatHandler::HandleLookupPoolCommand(char * args)
+{
+    if (!*args)
+        return false;
+
+    std::string namepart = args;
+
+    Player* player = m_session ? m_session->GetPlayer() : NULL;
+    MapPersistentState* mapState = player ? player->GetMap()->GetPersistentState() : NULL;
+
+    strToLower(namepart);
+
+    uint32 counter = 0;
+
+    // spawn pools for expected map or for not initialized shared pools state for non-instanceable maps
+    for(uint16 pool_id = 0; pool_id < sPoolMgr.GetMaxPoolId(); ++pool_id)
+    {
+        PoolTemplateData const& pool_template = sPoolMgr.GetPoolTemplate(pool_id);
+
+        std::string desc = pool_template.description;
+        strToLower(desc);
+
+        if (desc.find(namepart) == std::wstring::npos)
+            continue;
+
+        ShowPoolListHelper(pool_id);
+        ++counter;
+    }
+
+    if (counter==0)
+        SendSysMessage(LANG_NO_POOL);
+
+    return true;
+}
+
+bool ChatHandler::HandlePoolListCommand(char* args)
+{
+    Player* player = m_session->GetPlayer();
+
+    MapPersistentState* mapState = player->GetMap()->GetPersistentState();
+
+    if (!mapState->GetMapEntry()->Instanceable())
+    {
+        PSendSysMessage(LANG_POOL_LIST_NON_INSTANCE, mapState->GetMapEntry()->name[GetSessionDbcLocale()], mapState->GetMapId());
+        SetSentErrorMessage(false);
+        return false;
+    }
+
+    uint32 counter = 0;
+
+    // spawn pools for expected map or for not initialized shared pools state for non-instanceable maps
+    for(uint16 pool_id = 0; pool_id < sPoolMgr.GetMaxPoolId(); ++pool_id)
+    {
+        PoolTemplateData const& pool_template = sPoolMgr.GetPoolTemplate(pool_id);
+        if (sPoolMgr.GetPoolTemplate(pool_id).CanBeSpawnedAtMap(mapState->GetMapEntry()))
+        {
+            ShowPoolListHelper(pool_id);
+            ++counter;
+        }
+    }
+
+    if (counter==0)
+        PSendSysMessage(LANG_NO_POOL_FOR_MAP, mapState->GetMapEntry()->name[GetSessionDbcLocale()], mapState->GetMapId());
+
+    return true;
+}
+
+bool ChatHandler::HandlePoolSpawnsCommand(char* args)
+{
+    Player* player = m_session->GetPlayer();
+
+    MapPersistentState* mapState = player->GetMap()->GetPersistentState();
+
+    // shared continent pools data expected too big for show
+    uint32 pool_id = 0;
+    if (!ExtractUint32KeyFromLink(&args, "Hpool", pool_id) && !mapState->GetMapEntry()->Instanceable())
+    {
+        PSendSysMessage(LANG_POOL_SPAWNS_NON_INSTANCE, mapState->GetMapEntry()->name[GetSessionDbcLocale()], mapState->GetMapId());
+        SetSentErrorMessage(false);
+        return false;
+    }
+
+    SpawnedPoolData const& spawns = mapState->GetSpawnedPoolData();
+
+    SpawnedPoolObjects const& crSpawns = spawns.GetSpawnedCreatures();
+    for(SpawnedPoolObjects::const_iterator itr = crSpawns.begin(); itr != crSpawns.end(); ++itr)
+        if (!pool_id || pool_id == sPoolMgr.IsPartOfAPool<Creature>(*itr))
+            if (CreatureData const* data = sObjectMgr.GetCreatureData(*itr))
+                if (CreatureInfo const* info = ObjectMgr::GetCreatureTemplate(data->id))
+                    PSendSysMessage(LANG_CREATURE_LIST_CHAT, *itr, PrepareStringNpcOrGoSpawnInformation<Creature>(*itr).c_str(),
+                        *itr, info->Name, data->posX, data->posY, data->posZ, data->mapid);
+
+    SpawnedPoolObjects const& goSpawns = spawns.GetSpawnedGameobjects();
+    for(SpawnedPoolObjects::const_iterator itr = goSpawns.begin(); itr != goSpawns.end(); ++itr)
+        if (!pool_id || pool_id == sPoolMgr.IsPartOfAPool<GameObject>(*itr))
+            if (GameObjectData const* data = sObjectMgr.GetGOData(*itr))
+                if (GameObjectInfo const* info = ObjectMgr::GetGameObjectInfo(data->id))
+                    PSendSysMessage(LANG_GO_LIST_CHAT, *itr, PrepareStringNpcOrGoSpawnInformation<GameObject>(*itr).c_str(),
+                    *itr, info->name, data->posX, data->posY, data->posZ, data->mapid);
+
+    return true;
+}
+
+bool ChatHandler::HandlePoolInfoCommand(char* args)
+{
+    // id or [name] Shift-click form |color|Hpool:id|h[name]|h|r
+    uint32 pool_id;
+    if (!ExtractUint32KeyFromLink(&args, "Hpool", pool_id))
+        return false;
+
+    Player* player = m_session ? m_session->GetPlayer() : NULL;
+
+    MapPersistentState* mapState = player ? player->GetMap()->GetPersistentState() : NULL;
+    SpawnedPoolData const* spawns = mapState ? &mapState->GetSpawnedPoolData() : NULL;
+
+    std::string active_str = GetMangosString(LANG_ACTIVE);
+
+    PoolTemplateData const& pool_template = sPoolMgr.GetPoolTemplate(pool_id);
+    uint32 mother_pool_id = sPoolMgr.IsPartOfAPool<Pool>(pool_id);
+    if (!mother_pool_id)
+        PSendSysMessage(LANG_POOL_INFO_HEADER, pool_id, pool_template.AutoSpawn, pool_template.MaxLimit);
+    else
+    {
+        PoolTemplateData const& mother_template = sPoolMgr.GetPoolTemplate(mother_pool_id);
+        if (m_session)
+            PSendSysMessage(LANG_POOL_INFO_HEADER_CHAT, pool_id, mother_pool_id, mother_pool_id, mother_template.description.c_str(),
+                pool_template.AutoSpawn, pool_template.MaxLimit);
+        else
+            PSendSysMessage(LANG_POOL_INFO_HEADER_CONSOLE, pool_id, mother_pool_id, mother_template.description.c_str(),
+                pool_template.AutoSpawn, pool_template.MaxLimit);
+    }
+
+    PoolGroup<Creature> const& poolCreatures = sPoolMgr.GetPoolCreatures(pool_id);
+    SpawnedPoolObjects const* crSpawns = spawns ? &spawns->GetSpawnedCreatures() : NULL;
+
+    PoolObjectList const& poolCreaturesEx = poolCreatures.GetExplicitlyChanced();
+    if (!poolCreaturesEx.empty())
+    {
+        SendSysMessage(LANG_POOL_CHANCE_CREATURE_LIST_HEADER);
+        for (PoolObjectList::const_iterator itr = poolCreaturesEx.begin(); itr != poolCreaturesEx.end(); ++itr)
+        {
+            if (CreatureData const* data = sObjectMgr.GetCreatureData(itr->guid))
+            {
+                if (CreatureInfo const* info = ObjectMgr::GetCreatureTemplate(data->id))
+                {
+                    char const* active = crSpawns && crSpawns->find(itr->guid) != crSpawns->end() ? active_str.c_str() : "";
+                    if (m_session)
+                        PSendSysMessage(LANG_POOL_CHANCE_CREATURE_LIST_CHAT, itr->guid, PrepareStringNpcOrGoSpawnInformation<Creature>(itr->guid).c_str(),
+                            itr->guid, info->Name, data->posX, data->posY, data->posZ, data->mapid, itr->chance, active);
+                    else
+                        PSendSysMessage(LANG_POOL_CHANCE_CREATURE_LIST_CONSOLE, itr->guid, PrepareStringNpcOrGoSpawnInformation<Creature>(itr->guid).c_str(),
+                            info->Name, data->posX, data->posY, data->posZ, data->mapid, itr->chance, active);
+                }
+            }
+        }
+    }
+
+    PoolObjectList const& poolCreaturesEq = poolCreatures.GetEqualChanced();
+    if (!poolCreaturesEq.empty())
+    {
+        SendSysMessage(LANG_POOL_CREATURE_LIST_HEADER);
+        for (PoolObjectList::const_iterator itr = poolCreaturesEq.begin(); itr != poolCreaturesEq.end(); ++itr)
+        {
+            if (CreatureData const* data = sObjectMgr.GetCreatureData(itr->guid))
+            {
+                if (CreatureInfo const* info = ObjectMgr::GetCreatureTemplate(data->id))
+                {
+                    char const* active = crSpawns && crSpawns->find(itr->guid) != crSpawns->end() ? active_str.c_str() : "";
+                    if (m_session)
+                        PSendSysMessage(LANG_POOL_CREATURE_LIST_CHAT, itr->guid, PrepareStringNpcOrGoSpawnInformation<Creature>(itr->guid).c_str(),
+                            itr->guid, info->Name, data->posX, data->posY, data->posZ, data->mapid, active);
+                    else
+                        PSendSysMessage(LANG_POOL_CREATURE_LIST_CONSOLE, itr->guid, PrepareStringNpcOrGoSpawnInformation<Creature>(itr->guid).c_str(),
+                            info->Name, data->posX, data->posY, data->posZ, data->mapid, active);
+                }
+            }
+        }
+    }
+
+    PoolGroup<GameObject> const& poolGameObjects = sPoolMgr.GetPoolGameObjects(pool_id);
+    SpawnedPoolObjects const* goSpawns = spawns ? &spawns->GetSpawnedGameobjects() : NULL;
+
+    PoolObjectList const& poolGameObjectsEx = poolGameObjects.GetExplicitlyChanced();
+    if (!poolGameObjectsEx.empty())
+    {
+        SendSysMessage(LANG_POOL_CHANCE_GO_LIST_HEADER);
+        for (PoolObjectList::const_iterator itr = poolGameObjectsEx.begin(); itr != poolGameObjectsEx.end(); ++itr)
+        {
+            if (GameObjectData const* data = sObjectMgr.GetGOData(itr->guid))
+            {
+                if (GameObjectInfo const* info = ObjectMgr::GetGameObjectInfo(data->id))
+                {
+                    char const* active = goSpawns && goSpawns->find(itr->guid) != goSpawns->end() ? active_str.c_str() : "";
+                    if (m_session)
+                        PSendSysMessage(LANG_POOL_CHANCE_GO_LIST_CHAT, itr->guid, PrepareStringNpcOrGoSpawnInformation<GameObject>(itr->guid).c_str(),
+                            itr->guid, info->name, data->posX, data->posY, data->posZ, data->mapid, itr->chance, active);
+                    else
+                        PSendSysMessage(LANG_POOL_CHANCE_GO_LIST_CONSOLE, itr->guid, PrepareStringNpcOrGoSpawnInformation<GameObject>(itr->guid).c_str(),
+                            info->name, data->posX, data->posY, data->posZ, data->mapid, itr->chance, active);
+                }
+            }
+        }
+    }
+
+    PoolObjectList const& poolGameObjectsEq = poolGameObjects.GetEqualChanced();
+    if (!poolGameObjectsEq.empty())
+    {
+        SendSysMessage(LANG_POOL_GO_LIST_HEADER);
+        for (PoolObjectList::const_iterator itr = poolGameObjectsEq.begin(); itr != poolGameObjectsEq.end(); ++itr)
+        {
+            if (GameObjectData const* data = sObjectMgr.GetGOData(itr->guid))
+            {
+                if (GameObjectInfo const* info = ObjectMgr::GetGameObjectInfo(data->id))
+                {
+                    char const* active = goSpawns && goSpawns->find(itr->guid) != goSpawns->end() ? active_str.c_str() : "";
+                    if (m_session)
+                        PSendSysMessage(LANG_POOL_GO_LIST_CHAT, itr->guid, PrepareStringNpcOrGoSpawnInformation<GameObject>(itr->guid).c_str(),
+                            itr->guid, info->name, data->posX, data->posY, data->posZ, data->mapid, active);
+                    else
+                        PSendSysMessage(LANG_POOL_GO_LIST_CONSOLE, itr->guid, PrepareStringNpcOrGoSpawnInformation<GameObject>(itr->guid).c_str(),
+                            info->name, data->posX, data->posY, data->posZ, data->mapid, active);
+                }
+            }
+        }
+    }
+
+    PoolGroup<Pool> const& poolPools = sPoolMgr.GetPoolPools(pool_id);
+    SpawnedPoolPools const* poolSpawns = spawns ? &spawns->GetSpawnedPools() : NULL;
+
+    PoolObjectList const& poolPoolsEx = poolPools.GetExplicitlyChanced();
+    if (!poolPoolsEx.empty())
+    {
+        SendSysMessage(LANG_POOL_CHANCE_POOL_LIST_HEADER);
+        for (PoolObjectList::const_iterator itr = poolPoolsEx.begin(); itr != poolPoolsEx.end(); ++itr)
+        {
+            PoolTemplateData const& itr_template = sPoolMgr.GetPoolTemplate(itr->guid);
+            char const* active = poolSpawns && poolSpawns->find(itr->guid) != poolSpawns->end() ? active_str.c_str() : "";
+            if (m_session)
+                PSendSysMessage(LANG_POOL_CHANCE_POOL_LIST_CHAT, itr->guid,
+                    itr->guid, itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
+                    sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
+                    itr->chance, active);
+            else
+                PSendSysMessage(LANG_POOL_CHANCE_POOL_LIST_CONSOLE, itr->guid,
+                    itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
+                    sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
+                    itr->chance, active);
+        }
+    }
+
+    PoolObjectList const& poolPoolsEq = poolPools.GetEqualChanced();
+    if (!poolPoolsEq.empty())
+    {
+        SendSysMessage(LANG_POOL_POOL_LIST_HEADER);
+        for (PoolObjectList::const_iterator itr = poolPoolsEq.begin(); itr != poolPoolsEq.end(); ++itr)
+        {
+            PoolTemplateData const& itr_template = sPoolMgr.GetPoolTemplate(itr->guid);
+            char const* active = poolSpawns && poolSpawns->find(itr->guid) != poolSpawns->end() ? active_str.c_str() : "";
+            if (m_session)
+                PSendSysMessage(LANG_POOL_POOL_LIST_CHAT, itr->guid,
+                    itr->guid, itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
+                    sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
+                    active);
+            else
+                PSendSysMessage(LANG_POOL_POOL_LIST_CONSOLE, itr->guid,
+                    itr_template.description.c_str(), itr_template.AutoSpawn ? 1 : 0, itr_template.MaxLimit,
+                    sPoolMgr.GetPoolCreatures(itr->guid).size(), sPoolMgr.GetPoolGameObjects(itr->guid).size(), sPoolMgr.GetPoolPools(itr->guid).size(),
+                    active);
+        }
+    }
+    return true;
+}
+
 /// Triggering corpses expire check in world
 bool ChatHandler::HandleServerCorpsesCommand(char* /*args*/)
 {
@@ -4699,7 +4882,7 @@ bool ChatHandler::HandleRepairitemsCommand(char* args)
         return false;
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     // Repair items
@@ -4731,7 +4914,7 @@ bool ChatHandler::HandleWaterwalkCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(player, 0))
+    if (HasLowerSecurity(player))
         return false;
 
     if (value)
@@ -4844,7 +5027,7 @@ bool ChatHandler::HandleTitlesAddCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     CharTitlesEntry const* titleInfo = sCharTitlesStore.LookupEntry(id);
@@ -4890,7 +5073,7 @@ bool ChatHandler::HandleTitlesRemoveCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     CharTitlesEntry const* titleInfo = sCharTitlesStore.LookupEntry(id);
@@ -4939,7 +5122,7 @@ bool ChatHandler::HandleTitlesSetMaskCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     uint64 titles2 = titles;
@@ -5022,7 +5205,7 @@ bool ChatHandler::HandleTitlesCurrentCommand(char* args)
     }
 
     // check online security
-    if (HasLowerSecurity(target, 0))
+    if (HasLowerSecurity(target))
         return false;
 
     CharTitlesEntry const* titleInfo = sCharTitlesStore.LookupEntry(id);

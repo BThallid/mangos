@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@
 #include "Timer.h"
 #include "Policies/Singleton.h"
 #include "SharedDefines.h"
-#include "ace/Atomic_Op.h"
 
 #include <map>
 #include <set>
@@ -38,8 +37,6 @@ class WorldPacket;
 class WorldSession;
 class Player;
 class Weather;
-struct ScriptAction;
-struct ScriptInfo;
 class SqlResultQueue;
 class QueryResult;
 class WorldSocket;
@@ -47,11 +44,15 @@ class WorldSocket;
 // ServerMessages.dbc
 enum ServerMessageType
 {
-    SERVER_MSG_SHUTDOWN_TIME      = 1,
-    SERVER_MSG_RESTART_TIME       = 2,
-    SERVER_MSG_STRING             = 3,
-    SERVER_MSG_SHUTDOWN_CANCELLED = 4,
-    SERVER_MSG_RESTART_CANCELLED  = 5
+    SERVER_MSG_SHUTDOWN_TIME          = 1,
+    SERVER_MSG_RESTART_TIME           = 2,
+    SERVER_MSG_CUSTOM                 = 3,
+    SERVER_MSG_SHUTDOWN_CANCELLED     = 4,
+    SERVER_MSG_RESTART_CANCELLED      = 5,
+    SERVER_MSG_BG_SHUTDOWN_TIME       = 6,
+    SERVER_MSG_BG_RESTART_TIME        = 7,
+    SERVER_MSG_INSTANCE_SHUTDOWN_TIME = 8,
+    SERVER_MSG_INSTANCE_RESTART_TIME  = 9,
 };
 
 enum ShutdownMask
@@ -90,7 +91,6 @@ enum eConfigUInt32Values
     CONFIG_UINT32_INTERVAL_MAPUPDATE,
     CONFIG_UINT32_INTERVAL_CHANGEWEATHER,
     CONFIG_UINT32_PORT_WORLD,
-    CONFIG_UINT32_SOCKET_SELECTTIME,
     CONFIG_UINT32_GAME_TYPE,
     CONFIG_UINT32_REALM_ZONE,
     CONFIG_UINT32_STRICT_PLAYER_NAMES,
@@ -116,6 +116,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_INSTANCE_RESET_TIME_HOUR,
     CONFIG_UINT32_INSTANCE_UNLOAD_DELAY,
     CONFIG_UINT32_MAX_SPELL_CASTS_IN_CHAIN,
+    CONFIG_UINT32_BIRTHDAY_TIME,
     CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL,
     CONFIG_UINT32_MIN_PETITION_SIGNS,
     CONFIG_UINT32_GM_LOGIN_STATE,
@@ -128,6 +129,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_START_GM_LEVEL,
     CONFIG_UINT32_GROUP_VISIBILITY,
     CONFIG_UINT32_MAIL_DELIVERY_DELAY,
+    CONFIG_UINT32_MASS_MAILER_SEND_PER_TICK,
     CONFIG_UINT32_UPTIME_UPDATE,
     CONFIG_UINT32_AUCTION_DEPOSIT_MIN,
     CONFIG_UINT32_SKILL_CHANCE_ORANGE,
@@ -169,6 +171,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_ARENA_RATING_DISCARD_TIMER,
     CONFIG_UINT32_ARENA_AUTO_DISTRIBUTE_INTERVAL_DAYS,
     CONFIG_UINT32_ARENA_SEASON_ID,
+    CONFIG_UINT32_ARENA_SEASON_PREVIOUS_ID,
     CONFIG_UINT32_CLIENTCACHE_VERSION,
     CONFIG_UINT32_GUILD_EVENT_LOG_COUNT,
     CONFIG_UINT32_GUILD_BANK_EVENT_LOG_COUNT,
@@ -182,6 +185,8 @@ enum eConfigUInt32Values
     CONFIG_UINT32_CHARDELETE_KEEP_DAYS,
     CONFIG_UINT32_CHARDELETE_METHOD,
     CONFIG_UINT32_CHARDELETE_MIN_LEVEL,
+    CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE,
+    CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT,
     CONFIG_UINT32_VALUE_COUNT
 };
 
@@ -264,6 +269,8 @@ enum eConfigFloatValues
     CONFIG_FLOAT_CREATURE_FAMILY_ASSISTANCE_RADIUS,
     CONFIG_FLOAT_GROUP_XP_DISTANCE,
     CONFIG_FLOAT_THREAT_RADIUS,
+    CONFIG_FLOAT_GHOST_RUN_SPEED_WORLD,
+    CONFIG_FLOAT_GHOST_RUN_SPEED_BG,
     CONFIG_FLOAT_VALUE_COUNT
 };
 
@@ -271,9 +278,8 @@ enum eConfigFloatValues
 enum eConfigBoolValues
 {
     CONFIG_BOOL_GRID_UNLOAD = 0,
-    CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATLY,
+    CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATELY,
     CONFIG_BOOL_OFFHAND_CHECK_AT_TALENTS_RESET,
-    CONFIG_BOOL_ARENA_SEASON_IN_PROGRESS,
     CONFIG_BOOL_ALLOW_TWO_SIDE_ACCOUNTS,
     CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHAT,
     CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHANNEL,
@@ -310,6 +316,9 @@ enum eConfigBoolValues
     CONFIG_BOOL_ALL_TAXI_PATHS,
     CONFIG_BOOL_DECLINED_NAMES_USED,
     CONFIG_BOOL_SKILL_MILLING,
+    CONFIG_BOOL_SKILL_FAIL_LOOT_FISHING,
+    CONFIG_BOOL_SKILL_FAIL_GAIN_FISHING,
+    CONFIG_BOOL_SKILL_FAIL_POSSIBLE_FISHINGPOOL,
     CONFIG_BOOL_BATTLEGROUND_CAST_DESERTER,
     CONFIG_BOOL_BATTLEGROUND_QUEUE_ANNOUNCER_START,
     CONFIG_BOOL_ARENA_AUTO_DISTRIBUTE_POINTS,
@@ -319,6 +328,7 @@ enum eConfigBoolValues
     CONFIG_BOOL_STATS_SAVE_ONLY_ON_LOGOUT,
     CONFIG_BOOL_CLEAN_CHARACTER_DB,
     CONFIG_BOOL_VMAP_INDOOR_CHECK,
+    CONFIG_BOOL_PET_UNSUMMON_AT_MOUNT,
     CONFIG_BOOL_VALUE_COUNT
 };
 
@@ -392,32 +402,6 @@ enum RealmZone
     REALM_ZONE_CN5_8         = 37                           // basic-Latin at create, any at login
 };
 
-// DB scripting commands
-#define SCRIPT_COMMAND_TALK                  0              // source = WorldObject, target = any/none, datalong (see enum ChatType for supported CHAT_TYPE_'s)
-                                                            // datalong2 = creature entry (searching for a buddy, closest to source), datalong3 = creature search radius
-                                                            // data_flags = flag_target_player_as_source    = 0x01
-                                                            //              flag_original_source_as_target  = 0x02
-                                                            //              flag_buddy_as_target            = 0x04
-#define SCRIPT_COMMAND_EMOTE                 1              // source = unit, datalong = anim_id
-#define SCRIPT_COMMAND_FIELD_SET             2              // source = any, datalong = field_id, datalog2 = value
-#define SCRIPT_COMMAND_MOVE_TO               3              // source = Creature, datalog2 = time, x/y/z
-#define SCRIPT_COMMAND_FLAG_SET              4              // source = any, datalong = field_id, datalog2 = bitmask
-#define SCRIPT_COMMAND_FLAG_REMOVE           5              // source = any, datalong = field_id, datalog2 = bitmask
-#define SCRIPT_COMMAND_TELEPORT_TO           6              // source or target with Player, datalong = map_id, x/y/z
-#define SCRIPT_COMMAND_QUEST_EXPLORED        7              // one from source or target must be Player, another GO/Creature, datalong=quest_id, datalong2=distance or 0
-#define SCRIPT_COMMAND_KILL_CREDIT           8              // source or target with Player, datalong = creature entry, datalong2 = bool (0=personal credit, 1=group credit)
-#define SCRIPT_COMMAND_RESPAWN_GAMEOBJECT    9              // source = any (summoner), datalong=db_guid, datalong2=despawn_delay
-#define SCRIPT_COMMAND_TEMP_SUMMON_CREATURE 10              // source = any (summoner), datalong=creature entry, datalong2=despawn_delay
-#define SCRIPT_COMMAND_OPEN_DOOR            11              // source = unit, datalong=db_guid, datalong2=reset_delay
-#define SCRIPT_COMMAND_CLOSE_DOOR           12              // source = unit, datalong=db_guid, datalong2=reset_delay
-#define SCRIPT_COMMAND_ACTIVATE_OBJECT      13              // source = unit, target=GO
-#define SCRIPT_COMMAND_REMOVE_AURA          14              // source (datalong2!=0) or target (datalong==0) unit, datalong = spell_id
-#define SCRIPT_COMMAND_CAST_SPELL           15              // source/target cast spell at target/source (script->datalong2: 0: s->t 1: s->s 2: t->t 3: t->s
-#define SCRIPT_COMMAND_PLAY_SOUND           16              // source = any object, target=any/player, datalong (sound_id), datalong2 (bitmask: 0/1=anyone/target, 0/2=with distance dependent, so 1|2 = 3 is target with distance dependent)
-#define SCRIPT_COMMAND_CREATE_ITEM          17              // source or target must be player, datalong = item entry, datalong2 = amount
-#define SCRIPT_COMMAND_DESPAWN_SELF         18              // source or target must be creature, datalong = despawn delay
-#define SCRIPT_COMMAND_PLAY_MOVIE           19              // target can only be a player, datalog = movie id
-
 /// Storage class for commands issued for delayed execution
 struct CliCommandHolder
 {
@@ -457,8 +441,8 @@ class World
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
         uint32 GetActiveAndQueuedSessionCount() const { return m_sessions.size(); }
-        uint32 GetActiveSessionCount() const { return m_sessions.size() - m_QueuedPlayer.size(); }
-        uint32 GetQueuedSessionCount() const { return m_QueuedPlayer.size(); }
+        uint32 GetActiveSessionCount() const { return m_sessions.size() - m_QueuedSessions.size(); }
+        uint32 GetQueuedSessionCount() const { return m_QueuedSessions.size(); }
         /// Get the maximum number of parallel sessions on the server since last reboot
         uint32 GetMaxQueuedSessionCount() const { return m_maxQueuedSessionCount; }
         uint32 GetMaxActiveSessionCount() const { return m_maxActiveSessionCount; }
@@ -477,10 +461,9 @@ class World
 
         //player Queue
         typedef std::list<WorldSession*> Queue;
-        void AddQueuedPlayer(WorldSession*);
-        bool RemoveQueuedPlayer(WorldSession* session);
-        int32 GetQueuePos(WorldSession*);
-        uint32 GetQueueSize() const { return m_QueuedPlayer.size(); }
+        void AddQueuedSession(WorldSession*);
+        bool RemoveQueuedSession(WorldSession* session);
+        int32 GetQueuedSessionPos(WorldSession*);
 
         /// \todo Actions on m_allowMovement still to be implemented
         /// Is movement allowed?
@@ -567,20 +550,17 @@ class World
         BanReturn BanAccount(BanMode mode, std::string nameOrIP, uint32 duration_secs, std::string reason, std::string author);
         bool RemoveBanAccount(BanMode mode, std::string nameOrIP);
 
-        uint32 IncreaseScheduledScriptsCount() { return (uint32)++m_scheduledScripts; }
-        uint32 DecreaseScheduledScriptCount() { return (uint32)--m_scheduledScripts; }
-        uint32 DecreaseScheduledScriptCount(size_t count) { return (uint32)(m_scheduledScripts -= count); }
-        bool IsScriptScheduled() const { return m_scheduledScripts > 0; }
-
         // for max speed access
         static float GetMaxVisibleDistanceOnContinents()    { return m_MaxVisibleDistanceOnContinents; }
         static float GetMaxVisibleDistanceInInstances()     { return m_MaxVisibleDistanceInInstances;  }
         static float GetMaxVisibleDistanceInBGArenas()      { return m_MaxVisibleDistanceInBGArenas;   }
-        static float GetMaxVisibleDistanceForObject()       { return m_MaxVisibleDistanceForObject;   }
 
         static float GetMaxVisibleDistanceInFlight()        { return m_MaxVisibleDistanceInFlight;    }
         static float GetVisibleUnitGreyDistance()           { return m_VisibleUnitGreyDistance;       }
         static float GetVisibleObjectGreyDistance()         { return m_VisibleObjectGreyDistance;     }
+
+        static float GetRelocationLowerLimitSq()            { return m_relocation_lower_limit_sq; }
+        static uint32 GetRelocationAINotifyDelay()          { return m_relocation_ai_notify_delay; }
 
         void ProcessCliCommands();
         void QueueCliCommand(CliCommandHolder* commandHolder) { cliCmdQueue.add(commandHolder); }
@@ -597,10 +577,6 @@ class World
         char const* GetDBVersion() { return m_DBVersion.c_str(); }
         char const* GetCreatureEventAIVersion() { return m_CreatureEventAIVersion.c_str(); }
 
-        //used Script version
-        void SetScriptsVersion(char const* version) { m_ScriptsVersion = version ? version : "unknown scripting library"; }
-        char const* GetScriptsVersion() { return m_ScriptsVersion.c_str(); }
-
     protected:
         void _UpdateGameTime();
         // callback for UpdateRealmCharacters
@@ -608,8 +584,11 @@ class World
 
         void InitDailyQuestResetTime();
         void InitWeeklyQuestResetTime();
+        void SetMonthlyQuestResetTime(bool initialize = true);
         void ResetDailyQuests();
         void ResetWeeklyQuests();
+        void ResetMonthlyQuests();
+
     private:
         void setConfig(eConfigUInt32Values index, char const* fieldname, uint32 defvalue);
         void setConfig(eConfigInt32Values index, char const* fieldname, int32 defvalue);
@@ -632,9 +611,6 @@ class World
         static uint8 m_ExitCode;
         uint32 m_ShutdownTimer;
         uint32 m_ShutdownMask;
-
-        //atomic op counter for active scripts amount
-        ACE_Atomic_Op<ACE_Thread_Mutex, long> m_scheduledScripts;
 
         time_t m_startTime;
         time_t m_gameTime;
@@ -667,22 +643,24 @@ class World
         static float m_MaxVisibleDistanceOnContinents;
         static float m_MaxVisibleDistanceInInstances;
         static float m_MaxVisibleDistanceInBGArenas;
-        static float m_MaxVisibleDistanceForObject;
 
         static float m_MaxVisibleDistanceInFlight;
         static float m_VisibleUnitGreyDistance;
         static float m_VisibleObjectGreyDistance;
 
+        static float  m_relocation_lower_limit_sq;
+        static uint32 m_relocation_ai_notify_delay;
+
         // CLI command holder to be thread safe
         ACE_Based::LockedQueue<CliCommandHolder*,ACE_Thread_Mutex> cliCmdQueue;
-        SqlResultQueue *m_resultQueue;
 
         // next daily quests reset time
         time_t m_NextDailyQuestReset;
         time_t m_NextWeeklyQuestReset;
+        time_t m_NextMonthlyQuestReset;
 
         //Player Queue
-        Queue m_QueuedPlayer;
+        Queue m_QueuedSessions;
 
         //sessions that are added async
         void AddSession_(WorldSession* s);
@@ -691,7 +669,6 @@ class World
         //used versions
         std::string m_DBVersion;
         std::string m_CreatureEventAIVersion;
-        std::string m_ScriptsVersion;
 };
 
 extern uint32 realmID;

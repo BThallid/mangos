@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ void PointMovementGenerator<T>::Initialize(T &unit)
     Traveller<T> traveller(unit);
     i_destinationHolder.SetDestination(traveller, i_x, i_y, i_z);
 
-    if (unit.GetTypeId() == TYPEID_UNIT && ((Creature*)&unit)->canFly())
+    if (unit.GetTypeId() == TYPEID_UNIT && ((Creature*)&unit)->CanFly())
         ((Creature&)unit).AddSplineFlag(SPLINEFLAG_UNKNOWN7);
 }
 
@@ -86,6 +86,10 @@ bool PointMovementGenerator<T>::Update(T &unit, const uint32 &diff)
     {
         unit.clearUnitState(UNIT_STAT_ROAMING_MOVE);
         MovementInform(unit);
+
+        if (!IsActive(unit))
+            return true;
+
         return false;
     }
 
@@ -103,7 +107,7 @@ void PointMovementGenerator<Creature>::MovementInform(Creature &unit)
     if (unit.AI())
         unit.AI()->MovementInform(POINT_MOTION_TYPE, id);
 
-    if (unit.isTemporarySummon())
+    if (unit.IsTemporarySummon())
     {
         TemporarySummon* pSummon = (TemporarySummon*)(&unit);
         if (pSummon->GetSummonerGuid().IsCreature())

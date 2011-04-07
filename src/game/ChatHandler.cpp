@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,8 +28,6 @@
 #include "ChannelMgr.h"
 #include "Group.h"
 #include "Guild.h"
-#include "ObjectAccessor.h"
-#include "ScriptCalls.h"
 #include "Player.h"
 #include "SpellAuras.h"
 #include "Language.h"
@@ -146,15 +144,17 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
                 lang = ModLangAuras.front()->GetModifier()->m_miscvalue;
         }
 
-        if (!_player->CanSpeak())
-        {
-            std::string timeStr = secsToTimeString(m_muteTime - time(NULL));
-            SendNotification(GetMangosString(LANG_WAIT_BEFORE_SPEAKING), timeStr.c_str());
-            return;
-        }
-
         if (type != CHAT_MSG_AFK && type != CHAT_MSG_DND)
+        {
+            if (!_player->CanSpeak())
+            {
+                std::string timeStr = secsToTimeString(m_muteTime - time(NULL));
+                SendNotification(GetMangosString(LANG_WAIT_BEFORE_SPEAKING), timeStr.c_str());
+                return;
+            }
+
             GetPlayer()->UpdateSpeakTime();
+        }
     }
 
     switch(type)
@@ -224,9 +224,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
 
             if (!sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHAT) && tSecurity == SEC_PLAYER && pSecurity == SEC_PLAYER )
             {
-                uint32 sidea = GetPlayer()->GetTeam();
-                uint32 sideb = player->GetTeam();
-                if( sidea != sideb )
+                if (GetPlayer()->GetTeam() != player->GetTeam())
                 {
                     SendWrongFactionNotice();
                     return;
@@ -487,17 +485,21 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
             std::string msg;
             recv_data >> msg;
 
-            if((msg.empty() || !_player->isAFK()) && !_player->isInCombat() )
+            if (!_player->isInCombat())
             {
-                if(!_player->isAFK())
+                if (!msg.empty() || !_player->isAFK())
                 {
-                    if(msg.empty())
-                        msg  = GetMangosString(LANG_PLAYER_AFK_DEFAULT);
-                    _player->afkMsg = msg;
+                    if (msg.empty())
+                        _player->afkMsg = GetMangosString(LANG_PLAYER_AFK_DEFAULT);
+                    else
+                        _player->afkMsg = msg;
                 }
-                _player->ToggleAFK();
-                if(_player->isAFK() && _player->isDND())
-                    _player->ToggleDND();
+                if (msg.empty() || !_player->isAFK())
+                {
+                    _player->ToggleAFK();
+                    if (_player->isAFK() && _player->isDND())
+                        _player->ToggleDND();
+                }
             }
         } break;
 
@@ -506,16 +508,17 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
             std::string msg;
             recv_data >> msg;
 
-            if(msg.empty() || !_player->isDND())
+            if (!msg.empty() || !_player->isDND())
             {
-                if(!_player->isDND())
-                {
-                    if(msg.empty())
-                        msg  = GetMangosString(LANG_PLAYER_DND_DEFAULT);
+                if (msg.empty())
+                    _player->dndMsg = GetMangosString(LANG_PLAYER_DND_DEFAULT);
+                else
                     _player->dndMsg = msg;
-                }
+            }
+            if (msg.empty() || !_player->isDND())
+            {
                 _player->ToggleDND();
-                if(_player->isDND() && _player->isAFK())
+                if (_player->isDND() && _player->isAFK())
                     _player->ToggleAFK();
             }
         } break;
@@ -528,7 +531,7 @@ void WorldSession::HandleMessagechatOpcode( WorldPacket & recv_data )
 
 void WorldSession::HandleEmoteOpcode( WorldPacket & recv_data )
 {
-    if(!GetPlayer()->isAlive())
+    if(!GetPlayer()->isAlive() || GetPlayer()->hasUnitState(UNIT_STAT_DIED))
         return;
 
     uint32 emote;
@@ -581,7 +584,7 @@ void WorldSession::HandleTextEmoteOpcode( WorldPacket & recv_data )
     }
 
     uint32 text_emote, emoteNum;
-    uint64 guid;
+    ObjectGuid guid;
 
     recv_data >> text_emote;
     recv_data >> emoteNum;
@@ -601,11 +604,17 @@ void WorldSession::HandleTextEmoteOpcode( WorldPacket & recv_data )
         case EMOTE_ONESHOT_NONE:
             break;
         default:
+        {
+            // in feign death state allowed only text emotes.
+            if (GetPlayer()->hasUnitState(UNIT_STAT_DIED))
+                break;
+
             GetPlayer()->HandleEmoteCommand(emote_id);
             break;
+        }
     }
 
-    Unit* unit = ObjectAccessor::GetUnit(*_player, guid);
+    Unit* unit = GetPlayer()->GetMap()->GetUnit(guid);
 
     MaNGOS::EmoteChatBuilder emote_builder(*GetPlayer(), text_emote, emoteNum, unit);
     MaNGOS::LocalizedPacketDo<MaNGOS::EmoteChatBuilder > emote_do(emote_builder);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ struct SpellEntry;
 class ThreatCalcHelper
 {
     public:
-        static float calcThreat(Unit* pHatedUnit, Unit* pHatingUnit, float threat, bool crit, SpellSchoolMask schoolMask, SpellEntry const *threatSpell);
+        static float CalcThreat(Unit* pHatedUnit, Unit* pHatingUnit, float threat, bool crit, SpellSchoolMask schoolMask, SpellEntry const *threatSpell);
 };
 
 //==============================================================
@@ -183,6 +183,10 @@ class MANGOS_DLL_SPEC ThreatManager
 
         void addThreat(Unit* pVictim, float threat, bool crit, SpellSchoolMask schoolMask, SpellEntry const *threatSpell);
         void addThreat(Unit* pVictim, float threat) { addThreat(pVictim,threat,false,SPELL_SCHOOL_MASK_NONE,NULL); }
+
+        // add threat as raw value (ignore redirections and expection all mods applied already to it
+        void addThreatDirectly(Unit* pVictim, float threat);
+
         void modifyThreatPercent(Unit *pVictim, int32 pPercent);
 
         float getThreat(Unit *pVictim, bool pAlsoSearchOfflineList = false);
@@ -211,7 +215,7 @@ class MANGOS_DLL_SPEC ThreatManager
     private:
         HostileReference* iCurrentVictim;
         Unit* iOwner;
-        TimeTrackerSmall iUpdateTimer;
+        ShortTimeTracker iUpdateTimer;
         bool iUpdateNeed;
         ThreatContainer iThreatContainer;
         ThreatContainer iThreatOfflineContainer;

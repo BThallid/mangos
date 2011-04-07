@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ void TargetedMovementGeneratorMedium<T,D>::_setTargetLocation(T &owner)
     else
     {
         // to at i_offset distance from target and i_angle from target facing
-        i_target->GetClosePoint(x, y, z, owner.GetObjectBoundingRadius(), i_offset, i_angle);
+        i_target->GetClosePoint(x, y, z, owner.GetObjectBoundingRadius(), i_offset, i_angle, &owner);
     }
 
     /*
@@ -75,16 +75,11 @@ void TargetedMovementGeneratorMedium<T,D>::_setTargetLocation(T &owner)
             return;
     */
 
-    // Just a temp hack, GetContactPoint/GetClosePoint in above code use UpdateGroundPositionZ (in GetNearPoint)
-    // and then has the wrong z to use when creature try follow unit in the air.
-    if (owner.GetTypeId() == TYPEID_UNIT && ((Creature*)&owner)->canFly())
-        z = i_target->GetPositionZ();
-
     Traveller<T> traveller(owner);
     i_destinationHolder.SetDestination(traveller, x, y, z);
 
     D::_addUnitStateMove(owner);
-    if (owner.GetTypeId() == TYPEID_UNIT && ((Creature*)&owner)->canFly())
+    if (owner.GetTypeId() == TYPEID_UNIT && ((Creature*)&owner)->CanFly())
         ((Creature&)owner).AddSplineFlag(SPLINEFLAG_UNKNOWN7);
 }
 
@@ -151,7 +146,7 @@ bool TargetedMovementGeneratorMedium<T,D>::Update(T &owner, const uint32 & time_
     if (owner.IsStopped() && !i_destinationHolder.HasArrived())
     {
         D::_addUnitStateMove(owner);
-        if (owner.GetTypeId() == TYPEID_UNIT && ((Creature*)&owner)->canFly())
+        if (owner.GetTypeId() == TYPEID_UNIT && ((Creature*)&owner)->CanFly())
             ((Creature&)owner).AddSplineFlag(SPLINEFLAG_UNKNOWN7);
 
         i_destinationHolder.StartTravel(traveller);
@@ -198,7 +193,7 @@ bool TargetedMovementGeneratorMedium<T,D>::Update(T &owner, const uint32 & time_
 template<class T>
 void ChaseMovementGenerator<T>::_reachTarget(T &owner)
 {
-    if(owner.canReachWithAttack(this->i_target.getTarget()))
+    if (owner.CanReachWithMeleeAttack(this->i_target.getTarget()))
         owner.Attack(this->i_target.getTarget(),true);
 }
 
@@ -215,7 +210,7 @@ void ChaseMovementGenerator<Creature>::Initialize(Creature &owner)
     owner.addUnitState(UNIT_STAT_CHASE|UNIT_STAT_CHASE_MOVE);
     owner.RemoveSplineFlag(SPLINEFLAG_WALKMODE);
 
-    if (((Creature*)&owner)->canFly())
+    if (((Creature*)&owner)->CanFly())
         owner.AddSplineFlag(SPLINEFLAG_UNKNOWN7);
 
     _setTargetLocation(owner);
@@ -243,7 +238,7 @@ void ChaseMovementGenerator<T>::Reset(T &owner)
 template<>
 void FollowMovementGenerator<Creature>::_updateWalkMode(Creature &u)
 {
-    if (i_target.isValid() && u.isPet())
+    if (i_target.isValid() && u.IsPet())
         u.UpdateWalkMode(i_target.getTarget());
 }
 
@@ -262,7 +257,7 @@ template<>
 void FollowMovementGenerator<Creature>::_updateSpeed(Creature &u)
 {
     // pet only sync speed with owner
-    if (!((Creature&)u).isPet() || !i_target.isValid() || i_target->GetGUID() != u.GetOwnerGUID())
+    if (!((Creature&)u).IsPet() || !i_target.isValid() || i_target->GetObjectGuid() != u.GetOwnerGuid())
         return;
 
     u.UpdateSpeed(MOVE_RUN,true);
@@ -286,7 +281,7 @@ void FollowMovementGenerator<Creature>::Initialize(Creature &owner)
     _updateWalkMode(owner);
     _updateSpeed(owner);
 
-    if (((Creature*)&owner)->canFly())
+    if (((Creature*)&owner)->CanFly())
         owner.AddSplineFlag(SPLINEFLAG_UNKNOWN7);
 
     _setTargetLocation(owner);

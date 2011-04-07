@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,23 +51,29 @@ void Vehicle::RemoveFromWorld()
     Unit::RemoveFromWorld();
 }
 
-void Vehicle::setDeathState(DeathState s)                       // overwrite virtual Creature::setDeathState and Unit::setDeathState
+void Vehicle::SetDeathState(DeathState s)                       // overwrite virtual Creature::SetDeathState and Unit::SetDeathState
 {
-    Creature::setDeathState(s);
+    Creature::SetDeathState(s);
 }
 
-void Vehicle::Update(uint32 diff)
+void Vehicle::Update( uint32 update_diff, uint32 diff)
 {
-    Creature::Update(diff);
+    Creature::Update(update_diff, diff);
 }
 
-bool Vehicle::Create(uint32 guidlow, Map *map, uint32 Entry, uint32 vehicleId, uint32 team)
+bool Vehicle::Create(uint32 guidlow, CreatureCreatePos& cPos, uint32 Entry, uint32 vehicleId, Team team)
 {
-    SetMap(map);
+    SetMap(cPos.GetMap());
+    SetPhaseMask(cPos.GetPhaseMask(), false);
 
     Object::_Create(guidlow, Entry, HIGHGUID_VEHICLE);
 
-    if(!InitEntry(Entry, team))
+    if(!InitEntry(Entry))
+        return false;
+
+    cPos.SelectFinalPoint(this);
+
+    if (!cPos.Relocate(this))
         return false;
 
     m_defaultMovementType = IDLE_MOTION_TYPE;

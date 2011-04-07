@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -402,7 +402,7 @@ enum Opcodes
     CMSG_DUEL_CANCELLED                             = 0x16D,
     SMSG_MOUNTRESULT                                = 0x16E,
     SMSG_DISMOUNTRESULT                             = 0x16F,
-    SMSG_PUREMOUNT_CANCELLED_OBSOLETE               = 0x170,  // ERR_REMOVE_FROM_PVP_QUEUE_* events
+    SMSG_REMOVE_FROM_PVP_QUEUE_RESULT               = 0x170,  // ERR_REMOVE_FROM_PVP_QUEUE_* events
     CMSG_MOUNTSPECIAL_ANIM                          = 0x171,
     SMSG_MOUNTSPECIAL_ANIM                          = 0x172,
     SMSG_PET_TAME_FAILURE                           = 0x173,
@@ -697,7 +697,7 @@ enum Opcodes
     CMSG_MEETINGSTONE_CHEAT                         = 0x294, // not found 3.3
     SMSG_MEETINGSTONE_SETQUEUE                      = 0x295, // string, showed in console
     CMSG_MEETINGSTONE_INFO                          = 0x296, // EVENT_LFG_UPDATE
-    SMSG_MEETINGSTONE_COMPLETE                      = 0x297, // mail open from gossip?, EVENT_MAIL_SHOW
+    SMSG_MAIL_SHOW_FROM_GOSSIP                      = 0x297, // mail open from gossip?, EVENT_MAIL_SHOW
     SMSG_MEETINGSTONE_IN_PROGRESS                   = 0x298, // uint32, some UPDATE_COOLDOWN events
     SMSG_MEETINGSTONE_MEMBER_ADDED                  = 0x299, // uint32, errors: ERR_NOT_IN_GROUP (2,51) and ERR_NOT_IN_RAID (3,39,40)
     CMSG_GMTICKETSYSTEM_TOGGLE                      = 0x29A,
@@ -1226,7 +1226,7 @@ enum Opcodes
     UMSG_UNKNOWN_1189                               = 0x4A5, // not found, old SMSG_PET_GUIDS
     SMSG_BATTLEGROUND_INFO_THROTTLED                = 0x4A6, // empty, "You can't do that yet"
     SMSG_PLAYER_VEHICLE_DATA                        = 0x4A7, // smsg guid+uint32 (vehicle) EVENT_PLAYER_GAINS_VEHICLE_DATA/EVENT_PLAYER_LOSES_VEHICLE_DATA
-    CMSG_UNKNOWN_1192                               = 0x4A8, // cmsg uint64
+    CMSG_PLAYER_VEHICLE_ENTER                       = 0x4A8, // cmsg uint64
     CMSG_EJECT_PASSENGER                            = 0x4A9, // cmsg uint64
     SMSG_PET_GUIDS                                  = 0x4AA, // shifted+5
     SMSG_CLIENTCACHE_VERSION                        = 0x4AB, // shifted+5
@@ -1264,13 +1264,13 @@ enum Opcodes
     UMSG_UNKNOWN_1227                               = 0x4CB, // not found 3.2
     UMSG_UNKNOWN_1228                               = 0x4CC, // not found 3.2
     SMSG_MULTIPLE_PACKETS                           = 0x4CD, // SMSG, handles any opcode
-    SMSG_FORCE_UNK1_SPEED_CHANGE                    = 0x4CE, // SMSG, movement related
-    CMSG_FORCE_UNK1_SPEED_CHANGE_ACK                = 0x4CF, // movement related
-    SMSG_FORCE_UNK2_SPEED_CHANGE                    = 0x4D0, // SMSG, movement related
-    CMSG_FORCE_UNK2_SPEED_CHANGE_ACK                = 0x4D1, // movement related
-    MSG_MOVE_UNKNOWN_1234                           = 0x4D2, // SMSG, movement related
-    SMSG_SPLINE_MOVE_UNKNOWN_1235                   = 0x4D3, // SMSG, movement related
-    SMSG_SPLINE_MOVE_UNKNOWN_1236                   = 0x4D4, // SMSG, movement related
+    SMSG_MOVE_SET_LEVITATING                        = 0x4CE, // SMSG, movement related
+    CMSG_MOVE_SET_LEVITATING_ACK                    = 0x4CF, // movement related
+    SMSG_MOVE_UNSET_LEVITATING                      = 0x4D0, // SMSG, movement related
+    CMSG_MOVE_UNSET_LEVITATING_ACK                  = 0x4D1, // movement related
+    SMSG_MOVE_LEVITATING_                           = 0x4D2, // SMSG, movement related (movement flags 0x400 and 0x8000)
+    SMSG_SPLINE_MOVE_SET_LEVITATING                 = 0x4D3, // SMSG, movement related
+    SMSG_SPLINE_MOVE_UNSET_LEVITATING               = 0x4D4, // SMSG, movement related
     CMSG_EQUIPMENT_SET_USE                          = 0x4D5, // CMSG, lua: UseEquipmentSet
     SMSG_EQUIPMENT_SET_USE_RESULT                   = 0x4D6, // SMSG, UseEquipmentSetResult?
     UMSG_UNKNOWN_1239                               = 0x4D7, // not found 3.2
@@ -1359,12 +1359,20 @@ enum SessionStatus
     STATUS_UNHANDLED                                        ///< We don' handle this opcode yet
 };
 
+enum PacketProcessing
+{
+    PROCESS_INPLACE = 0,                                    //process packet whenever we receive it - mostly for non-handled or non-implemented packets
+    PROCESS_THREADUNSAFE,                                   //packet is not thread-safe - process it in World::UpdateSessions()
+    PROCESS_THREADSAFE                                      //packet is thread-safe - process it in Map::Update()
+};
+
 class WorldPacket;
 
 struct OpcodeHandler
 {
     char const* name;
     SessionStatus status;
+    PacketProcessing packetProcessing;
     void (WorldSession::*handler)(WorldPacket& recvPacket);
 };
 

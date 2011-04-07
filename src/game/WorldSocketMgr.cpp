@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,9 +54,9 @@ class ReactorRunnable : protected ACE_Task_Base
     public:
 
         ReactorRunnable () :
-            m_ThreadId (-1),
+            m_Reactor (0),
             m_Connections (0),
-            m_Reactor (0)
+            m_ThreadId (-1)
         {
             ACE_Reactor_Impl* imp = 0;
 
@@ -154,7 +154,7 @@ class ReactorRunnable : protected ACE_Task_Base
 
             WorldDatabase.ThreadStart ();
 
-            ACE_ASSERT (m_Reactor);
+            MANGOS_ASSERT (m_Reactor);
 
             SocketSet::iterator i, t;
 
@@ -207,8 +207,8 @@ class ReactorRunnable : protected ACE_Task_Base
 };
 
 WorldSocketMgr::WorldSocketMgr () :
-    m_NetThreadsCount (0),
     m_NetThreads (0),
+    m_NetThreadsCount (0),
     m_SockOutKBuff (-1),
     m_SockOutUBuff (65536),
     m_UseNoDelay (true),
@@ -353,7 +353,7 @@ WorldSocketMgr::OnSocketOpen (WorldSocket* sock)
     // we skip the Acceptor Thread
     size_t min = 1;
 
-    ACE_ASSERT (m_NetThreadsCount >= 1);
+    MANGOS_ASSERT (m_NetThreadsCount >= 1);
 
     for (size_t i = 1; i < m_NetThreadsCount; ++i)
         if (m_NetThreads[i].Connections () < m_NetThreads[min].Connections ())

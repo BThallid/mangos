@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #include "Transports.h"
 #include "BattleGround.h"
 #include "WaypointMovementGenerator.h"
-#include "InstanceSaveMgr.h"
+#include "MapPersistentStateMgr.h"
 #include "ObjectMgr.h"
 
 void WorldSession::HandleMoveWorldportAckOpcode( WorldPacket & /*recv_data*/ )
@@ -44,14 +44,19 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     if(!GetPlayer()->IsBeingTeleportedFar())
         return;
 
+    // get start teleport coordinates (will used later in fail case)
+    WorldLocation old_loc;
+    GetPlayer()->GetPosition(old_loc);
+
     // get the teleport destination
     WorldLocation &loc = GetPlayer()->GetTeleportDest();
 
-    // possible errors in the coordinate validity check
-    if(!MapManager::IsValidMapCoord(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z, loc.orientation))
+    // possible errors in the coordinate validity check (only cheating case possible)
+    if (!MapManager::IsValidMapCoord(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z, loc.orientation))
     {
-        sLog.outError("WorldSession::HandleMoveWorldportAckOpcode: player %s (%d) was teleported far to a not valid location. (map:%u, x:%f, y:%f, "
-            "z:%f) We port him to his homebind instead..", GetPlayer()->GetName(), GetPlayer()->GetGUIDLow(), loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z);
+        sLog.outError("WorldSession::HandleMoveWorldportAckOpcode: %s was teleported far to a not valid location "
+            "(map:%u, x:%f, y:%f, z:%f) We port him to his homebind instead..",
+            GetPlayer()->GetGuidStr().c_str(), loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z);
         // stop teleportation else we would try this again and again in LogoutPlayer...
         GetPlayer()->SetSemaphoreTeleportFar(false);
         // and teleport the player to a valid place
@@ -61,30 +66,68 @@ void WorldSession::HandleMoveWorldportAckOpcode()
 
     // get the destination map entry, not the current one, this will fix homebind and reset greeting
     MapEntry const* mEntry = sMapStore.LookupEntry(loc.mapid);
+
+    Map* map = NULL;
+
+    // prevent crash at attempt landing to not existed battleground instance
+    if(mEntry->IsBattleGroundOrArena())
+    {
+        if (GetPlayer()->GetBattleGroundId())
+            map = sMapMgr.FindMap(loc.mapid, GetPlayer()->GetBattleGroundId());
+
+        if (!map)
+        {
+            DETAIL_LOG("WorldSession::HandleMoveWorldportAckOpcode: %s was teleported far to nonexisten battleground instance "
+                " (map:%u, x:%f, y:%f, z:%f) Trying to port him to his previous place..",
+                GetPlayer()->GetGuidStr().c_str(), loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z);
+
+            GetPlayer()->SetSemaphoreTeleportFar(false);
+
+            // Teleport to previous place, if cannot be ported back TP to homebind place
+            if (!GetPlayer()->TeleportTo(old_loc))
+            {
+                DETAIL_LOG("WorldSession::HandleMoveWorldportAckOpcode: %s cannot be ported to his previous place, teleporting him to his homebind place...",
+                    GetPlayer()->GetGuidStr().c_str());
+                GetPlayer()->TeleportToHomebind();
+            }
+            return;
+        }
+    }
+
     InstanceTemplate const* mInstance = ObjectMgr::GetInstanceTemplate(loc.mapid);
 
     // reset instance validity, except if going to an instance inside an instance
-    if(GetPlayer()->m_InstanceValid == false && !mInstance)
+    if (GetPlayer()->m_InstanceValid == false && !mInstance)
         GetPlayer()->m_InstanceValid = true;
 
     GetPlayer()->SetSemaphoreTeleportFar(false);
 
     // relocate the player to the teleport destination
-    GetPlayer()->SetMap(sMapMgr.CreateMap(loc.mapid, GetPlayer()));
+    if (!map)
+        map = sMapMgr.CreateMap(loc.mapid, GetPlayer());
+
+    GetPlayer()->SetMap(map);
     GetPlayer()->Relocate(loc.coord_x, loc.coord_y, loc.coord_z, loc.orientation);
 
     GetPlayer()->SendInitialPacketsBeforeAddToMap();
     // the CanEnter checks are done in TeleporTo but conditions may change
     // while the player is in transit, for example the map may get full
-    if(!GetPlayer()->GetMap()->Add(GetPlayer()))
+    if (!GetPlayer()->GetMap()->Add(GetPlayer()))
     {
-        //if player wasn't added to map, reset his map pointer!
+        // if player wasn't added to map, reset his map pointer!
         GetPlayer()->ResetMap();
 
-        sLog.outError("WorldSession::HandleMoveWorldportAckOpcode: player %s (%d) was teleported far but couldn't be added to map. (map:%u, x:%f, y:%f, "
-            "z:%f) We port him to his homebind instead..", GetPlayer()->GetName(), GetPlayer()->GetGUIDLow(), loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z);
-        // teleport the player home
-        GetPlayer()->TeleportToHomebind();
+        DETAIL_LOG("WorldSession::HandleMoveWorldportAckOpcode: %s was teleported far but couldn't be added to map "
+            " (map:%u, x:%f, y:%f, z:%f) Trying to port him to his previous place..",
+            GetPlayer()->GetGuidStr().c_str(), loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z);
+
+        // Teleport to previous place, if cannot be ported back TP to homebind place
+        if (!GetPlayer()->TeleportTo(old_loc))
+        {
+            DETAIL_LOG("WorldSession::HandleMoveWorldportAckOpcode: %s cannot be ported to his previous place, teleporting him to his homebind place...",
+                GetPlayer()->GetGuidStr().c_str());
+            GetPlayer()->TeleportToHomebind();
+        }
         return;
     }
 
@@ -98,7 +141,7 @@ void WorldSession::HandleMoveWorldportAckOpcode()
             // We're not in BG
             _player->SetBattleGroundId(0, BATTLEGROUND_TYPE_NONE);
             // reset destination bg team
-            _player->SetBGTeam(0);
+            _player->SetBGTeam(TEAM_NONE);
         }
         // join to bg case
         else if(BattleGround *bg = _player->GetBattleGround())
@@ -144,7 +187,7 @@ void WorldSession::HandleMoveWorldportAckOpcode()
         {
             if (mapDiff->resetTime)
             {
-                if (time_t timeReset = sInstanceSaveMgr.GetScheduler().GetResetTimeFor(mEntry->MapID,diff))
+                if (time_t timeReset = sMapPersistentStateMgr.GetScheduler().GetResetTimeFor(mEntry->MapID,diff))
                 {
                     uint32 timeleft = uint32(timeReset - time(NULL));
                     GetPlayer()->SendInstanceResetWarning(mEntry->MapID, diff, timeleft);
@@ -168,7 +211,7 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     GetPlayer()->ProcessDelayedOperations();
 }
 
-void WorldSession::HandleMoveTeleportAck(WorldPacket& recv_data)
+void WorldSession::HandleMoveTeleportAckOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("MSG_MOVE_TELEPORT_ACK");
 
@@ -176,10 +219,10 @@ void WorldSession::HandleMoveTeleportAck(WorldPacket& recv_data)
 
     recv_data >> guid.ReadAsPacked();
 
-    uint32 flags, time;
-    recv_data >> flags >> time;
+    uint32 counter, time;
+    recv_data >> counter >> time;
     DEBUG_LOG("Guid: %s", guid.GetString().c_str());
-    DEBUG_LOG("Flags %u, time %u", flags, time/IN_MILLISECONDS);
+    DEBUG_LOG("Counter %u, time %u", counter, time/IN_MILLISECONDS);
 
     Unit *mover = _player->GetMover();
     Player *plMover = mover->GetTypeId() == TYPEID_PLAYER ? (Player*)mover : NULL;
@@ -241,128 +284,30 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
     recv_data >> movementInfo;
     /*----------------*/
 
-    // ignore wrong guid (player attempt cheating own session for not own guid possible...)
-    if (guid != mover->GetObjectGuid())
+    if (!VerifyMovementInfo(movementInfo, guid))
         return;
-
-    if (!MaNGOS::IsValidMapCoord(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o))
-    {
-        recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
-        return;
-    }
-
-    /* handle special cases */
-    if (movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
-    {
-        // transports size limited
-        // (also received at zeppelin/lift leave by some reason with t_* as absolute in continent coordinates, can be safely skipped)
-        if( movementInfo.GetTransportPos()->x > 50 || movementInfo.GetTransportPos()->y > 50 || movementInfo.GetTransportPos()->z > 100 )
-        {
-            recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
-            return;
-        }
-
-        if( !MaNGOS::IsValidMapCoord(movementInfo.GetPos()->x + movementInfo.GetTransportPos()->x, movementInfo.GetPos()->y + movementInfo.GetTransportPos()->y,
-            movementInfo.GetPos()->z + movementInfo.GetTransportPos()->z, movementInfo.GetPos()->o + movementInfo.GetTransportPos()->o) )
-        {
-            recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
-            return;
-        }
-
-        // if we boarded a transport, add us to it
-        if (plMover && !plMover->m_transport)
-        {
-            // elevators also cause the client to send MOVEFLAG_ONTRANSPORT - just unmount if the guid can be found in the transport list
-            for (MapManager::TransportSet::const_iterator iter = sMapMgr.m_Transports.begin(); iter != sMapMgr.m_Transports.end(); ++iter)
-            {
-                if ((*iter)->GetObjectGuid() == movementInfo.GetTransportGuid())
-                {
-                    plMover->m_transport = (*iter);
-                    (*iter)->AddPassenger(plMover);
-                    break;
-                }
-            }
-        }
-    }
-    else if (plMover && plMover->m_transport)               // if we were on a transport, leave
-    {
-        plMover->m_transport->RemovePassenger(plMover);
-        plMover->m_transport = NULL;
-        movementInfo.ClearTransportData();
-    }
 
     // fall damage generation (ignore in flight case that can be triggered also at lags in moment teleportation to another map).
     if (opcode == MSG_MOVE_FALL_LAND && plMover && !plMover->IsTaxiFlying())
         plMover->HandleFall(movementInfo);
 
-    if (plMover && (movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING) != plMover->IsInWater()))
-    {
-        // now client not include swimming flag in case jumping under water
-        plMover->SetInWater( !plMover->IsInWater() || plMover->GetBaseMap()->IsUnderWater(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z) );
-    }
-
-    /*----------------------*/
-
     /* process position-change */
-    movementInfo.UpdateTime(getMSTime());
+    HandleMoverRelocation(movementInfo);
 
-    WorldPacket data(opcode, recv_data.size());
-    data.appendPackGUID(mover->GetGUID());                  // write guid
-    movementInfo.Write(data);                               // write data
-    mover->SendMessageToSetExcept(&data, _player);
-
-    if(plMover)                                             // nothing is charmed, or player charmed
-    {
-        plMover->SetPosition(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
-        plMover->m_movementInfo = movementInfo;
+    if (plMover)
         plMover->UpdateFallInformationIfNeed(movementInfo, opcode);
 
-        // after move info set
-        if ((opcode == MSG_MOVE_SET_WALK_MODE || opcode == MSG_MOVE_SET_RUN_MODE))
-            plMover->UpdateWalkMode(plMover, false);
+    // after move info set
+    if (opcode == MSG_MOVE_SET_WALK_MODE || opcode == MSG_MOVE_SET_RUN_MODE)
+        mover->UpdateWalkMode(mover, false);
 
-        if(plMover->isMovingOrTurning())
-            plMover->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
-
-        if(movementInfo.GetPos()->z < -500.0f)
-        {
-            if(plMover->InBattleGround()
-                && plMover->GetBattleGround()
-                && plMover->GetBattleGround()->HandlePlayerUnderMap(_player))
-            {
-                // do nothing, the handle already did if returned true
-            }
-            else
-            {
-                // NOTE: this is actually called many times while falling
-                // even after the player has been teleported away
-                // TODO: discard movement packets after the player is rooted
-                if(plMover->isAlive())
-                {
-                    plMover->EnvironmentalDamage(DAMAGE_FALL_TO_VOID, plMover->GetMaxHealth());
-                    // pl can be alive if GM/etc
-                    if(!plMover->isAlive())
-                    {
-                        // change the death state to CORPSE to prevent the death timer from
-                        // starting in the next player update
-                        plMover->KillPlayer();
-                        plMover->BuildPlayerRepop();
-                    }
-                }
-
-                // cancel the death timer here if started
-                plMover->RepopAtGraveyard();
-            }
-        }
-    }
-    else                                                    // creature charmed
-    {
-        if(mover->IsInWorld())
-            mover->GetMap()->CreatureRelocation((Creature*)mover, movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
-    }
+    WorldPacket data(opcode, recv_data.size());
+    data << mover->GetPackGUID();             // write guid
+    movementInfo.Write(data);                               // write data
+    mover->SendMessageToSetExcept(&data, _player);
 }
 
-void WorldSession::HandleForceSpeedChangeAck(WorldPacket &recv_data)
+void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket &recv_data)
 {
     uint32 opcode = recv_data.GetOpcode();
     DEBUG_LOG("WORLD: Recvd %s (%u, 0x%X) opcode", LookupOpcodeName(opcode), opcode, opcode);
@@ -444,12 +389,12 @@ void WorldSession::HandleSetActiveMoverOpcode(WorldPacket &recv_data)
     if(_player->GetMover()->GetObjectGuid() != guid)
     {
         sLog.outError("HandleSetActiveMoverOpcode: incorrect mover guid: mover is %s and should be %s",
-            _player->GetMover()->GetObjectGuid().GetString().c_str(), guid.GetString().c_str());
+            _player->GetMover()->GetGuidStr().c_str(), guid.GetString().c_str());
         return;
     }
 }
 
-void WorldSession::HandleMoveNotActiveMover(WorldPacket &recv_data)
+void WorldSession::HandleMoveNotActiveMoverOpcode(WorldPacket &recv_data)
 {
     DEBUG_LOG("WORLD: Recvd CMSG_MOVE_NOT_ACTIVE_MOVER");
     recv_data.hexlike();
@@ -463,8 +408,8 @@ void WorldSession::HandleMoveNotActiveMover(WorldPacket &recv_data)
     if(_player->GetMover()->GetObjectGuid() == old_mover_guid)
     {
         sLog.outError("HandleMoveNotActiveMover: incorrect mover guid: mover is %s and should be %s instead of %s",
-            _player->GetMover()->GetObjectGuid().GetString().c_str(),
-            _player->GetObjectGuid().GetString().c_str(),
+            _player->GetMover()->GetGuidStr().c_str(),
+            _player->GetGuidStr().c_str(),
             old_mover_guid.GetString().c_str());
         recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
         return;
@@ -484,9 +429,9 @@ void WorldSession::HandleDismissControlledVehicle(WorldPacket &recv_data)
     recv_data >> guid.ReadAsPacked();
     recv_data >> mi;
 
-    uint64 vehicleGUID = _player->GetCharmGUID();
+    ObjectGuid vehicleGUID = _player->GetCharmGuid();
 
-    if(!vehicleGUID)                                        // something wrong here...
+    if (vehicleGUID.IsEmpty())                              // something wrong here...
         return;
 
     _player->m_movementInfo = mi;
@@ -513,12 +458,36 @@ void WorldSession::HandleMoveKnockBackAck( WorldPacket & recv_data )
 {
     DEBUG_LOG("CMSG_MOVE_KNOCK_BACK_ACK");
 
-    ObjectGuid guid;                                        // guid - unused
+    Unit *mover = _player->GetMover();
+    Player *plMover = mover->GetTypeId() == TYPEID_PLAYER ? (Player*)mover : NULL;
+
+    // ignore, waiting processing in WorldSession::HandleMoveWorldportAckOpcode and WorldSession::HandleMoveTeleportAck
+    if(plMover && plMover->IsBeingTeleported())
+    {
+        recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
+        return;
+    }
+
+    ObjectGuid guid;
     MovementInfo movementInfo;
 
     recv_data >> guid.ReadAsPacked();
-    recv_data >> Unused<uint32>();                          // unk
+    recv_data >> Unused<uint32>();                          // knockback packets counter
     recv_data >> movementInfo;
+
+    if (!VerifyMovementInfo(movementInfo, guid))
+        return;
+
+    HandleMoverRelocation(movementInfo);
+
+    WorldPacket data(MSG_MOVE_KNOCK_BACK, recv_data.size() + 15);
+    data << mover->GetPackGUID();
+    data << movementInfo;
+    data << movementInfo.GetJumpInfo().sinAngle;
+    data << movementInfo.GetJumpInfo().cosAngle;
+    data << movementInfo.GetJumpInfo().xyspeed;
+    data << movementInfo.GetJumpInfo().velocity;
+    mover->SendMessageToSetExcept(&data, _player);
 }
 
 void WorldSession::HandleMoveHoverAck( WorldPacket& recv_data )
@@ -558,4 +527,108 @@ void WorldSession::HandleSummonResponseOpcode(WorldPacket& recv_data)
     recv_data >> agree;
 
     _player->SummonIfPossible(agree);
+}
+
+bool WorldSession::VerifyMovementInfo(MovementInfo const& movementInfo, ObjectGuid const& guid) const
+{
+    // ignore wrong guid (player attempt cheating own session for not own guid possible...)
+    if (guid != _player->GetMover()->GetObjectGuid())
+        return false;
+
+    if (!MaNGOS::IsValidMapCoord(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o))
+        return false;
+
+    if (movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
+    {
+        // transports size limited
+        // (also received at zeppelin/lift leave by some reason with t_* as absolute in continent coordinates, can be safely skipped)
+        if( movementInfo.GetTransportPos()->x > 50 || movementInfo.GetTransportPos()->y > 50 || movementInfo.GetTransportPos()->z > 100 )
+            return false;
+
+        if( !MaNGOS::IsValidMapCoord(movementInfo.GetPos()->x + movementInfo.GetTransportPos()->x, movementInfo.GetPos()->y + movementInfo.GetTransportPos()->y,
+            movementInfo.GetPos()->z + movementInfo.GetTransportPos()->z, movementInfo.GetPos()->o + movementInfo.GetTransportPos()->o) )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
+{
+    movementInfo.UpdateTime(WorldTimer::getMSTime());
+
+    Unit *mover = _player->GetMover();
+
+    if (Player *plMover = mover->GetTypeId() == TYPEID_PLAYER ? (Player*)mover : NULL)
+    {
+        if (movementInfo.HasMovementFlag(MOVEFLAG_ONTRANSPORT))
+        {
+            if (!plMover->m_transport)
+            {
+                // elevators also cause the client to send MOVEFLAG_ONTRANSPORT - just unmount if the guid can be found in the transport list
+                for (MapManager::TransportSet::const_iterator iter = sMapMgr.m_Transports.begin(); iter != sMapMgr.m_Transports.end(); ++iter)
+                {
+                    if ((*iter)->GetObjectGuid() == movementInfo.GetTransportGuid())
+                    {
+                        plMover->m_transport = (*iter);
+                        (*iter)->AddPassenger(plMover);
+                        break;
+                    }
+                }
+            }
+        }
+        else if (plMover->m_transport)               // if we were on a transport, leave
+        {
+            plMover->m_transport->RemovePassenger(plMover);
+            plMover->m_transport = NULL;
+            movementInfo.ClearTransportData();
+        }
+
+        if (movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING) != plMover->IsInWater())
+        {
+            // now client not include swimming flag in case jumping under water
+            plMover->SetInWater( !plMover->IsInWater() || plMover->GetTerrain()->IsUnderWater(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z) );
+        }
+
+        plMover->SetPosition(movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+        plMover->m_movementInfo = movementInfo;
+
+        if(movementInfo.GetPos()->z < -500.0f)
+        {
+            if(plMover->InBattleGround()
+                && plMover->GetBattleGround()
+                && plMover->GetBattleGround()->HandlePlayerUnderMap(_player))
+            {
+                // do nothing, the handle already did if returned true
+            }
+            else
+            {
+                // NOTE: this is actually called many times while falling
+                // even after the player has been teleported away
+                // TODO: discard movement packets after the player is rooted
+                if(plMover->isAlive())
+                {
+                    plMover->EnvironmentalDamage(DAMAGE_FALL_TO_VOID, plMover->GetMaxHealth());
+                    // pl can be alive if GM/etc
+                    if(!plMover->isAlive())
+                    {
+                        // change the death state to CORPSE to prevent the death timer from
+                        // starting in the next player update
+                        plMover->KillPlayer();
+                        plMover->BuildPlayerRepop();
+                    }
+                }
+
+                // cancel the death timer here if started
+                plMover->RepopAtGraveyard();
+            }
+        }
+    }
+    else                                                    // creature charmed
+    {
+        if (mover->IsInWorld())
+            mover->GetMap()->CreatureRelocation((Creature*)mover, movementInfo.GetPos()->x, movementInfo.GetPos()->y, movementInfo.GetPos()->z, movementInfo.GetPos()->o);
+    }
 }

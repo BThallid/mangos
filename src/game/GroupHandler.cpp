@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -87,7 +87,7 @@ void WorldSession::HandleGroupInviteOpcode( WorldPacket & recv_data )
         return;
     }
     // just ignore us
-    if(player->GetSocial()->HasIgnore(GetPlayer()->GetGUIDLow()))
+    if(player->GetSocial()->HasIgnore(GetPlayer()->GetObjectGuid()))
     {
         SendPartyResult(PARTY_OP_INVITE, membername, ERR_IGNORING_YOU_S);
         return;
@@ -175,7 +175,7 @@ void WorldSession::HandleGroupAcceptOpcode( WorldPacket & recv_data )
     if (group->GetLeaderGuid() == GetPlayer()->GetObjectGuid())
     {
         sLog.outError("HandleGroupAcceptOpcode: %s tried to accept an invite to his own group",
-            GetPlayer()->GetObjectGuid().GetString().c_str());
+            GetPlayer()->GetGuidStr().c_str());
         return;
     }
 
@@ -240,7 +240,7 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket & recv_data)
     // can't uninvite yourself
     if (guid == GetPlayer()->GetObjectGuid())
     {
-        sLog.outError("WorldSession::HandleGroupUninviteGuidOpcode: leader %s tried to uninvite himself from the group.", GetPlayer()->GetName(), GetPlayer()->GetObjectGuid().GetString().c_str());
+        sLog.outError("WorldSession::HandleGroupUninviteGuidOpcode: leader %s tried to uninvite himself from the group.", GetPlayer()->GetGuidStr().c_str());
         return;
     }
 
@@ -282,7 +282,7 @@ void WorldSession::HandleGroupUninviteOpcode(WorldPacket & recv_data)
     // can't uninvite yourself
     if (GetPlayer()->GetName() == membername)
     {
-        sLog.outError("WorldSession::HandleGroupUninviteOpcode: leader %s tried to uninvite himself from the group.", GetPlayer()->GetName(), GetPlayer()->GetObjectGuid().GetString().c_str());
+        sLog.outError("WorldSession::HandleGroupUninviteOpcode: leader %s tried to uninvite himself from the group.", GetPlayer()->GetGuidStr().c_str());
         return;
     }
 
@@ -803,15 +803,15 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player *player, WorldPacke
 void WorldSession::HandleRequestPartyMemberStatsOpcode( WorldPacket &recv_data )
 {
     DEBUG_LOG("WORLD: Received CMSG_REQUEST_PARTY_MEMBER_STATS");
-    uint64 Guid;
-    recv_data >> Guid;
+    ObjectGuid guid;
+    recv_data >> guid;
 
-    Player *player = sObjectMgr.GetPlayer(Guid);
+    Player * player = HashMapHolder<Player>::Find(guid);
     if(!player)
     {
         WorldPacket data(SMSG_PARTY_MEMBER_STATS_FULL, 3+4+2);
         data << uint8(0);                                   // only for SMSG_PARTY_MEMBER_STATS_FULL, probably arena/bg related
-        data.appendPackGUID(Guid);
+        data << guid.WriteAsPacked();
         data << uint32(GROUP_UPDATE_FLAG_STATUS);
         data << uint16(MEMBER_STATUS_OFFLINE);
         SendPacket(&data);
@@ -837,9 +837,33 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode( WorldPacket &recv_data )
     data << uint16(player->GetPower(powerType));            // GROUP_UPDATE_FLAG_CUR_POWER
     data << uint16(player->GetMaxPower(powerType));         // GROUP_UPDATE_FLAG_MAX_POWER
     data << uint16(player->getLevel());                     // GROUP_UPDATE_FLAG_LEVEL
-    data << uint16(player->GetZoneId());                    // GROUP_UPDATE_FLAG_ZONE
-    data << uint16(player->GetPositionX());                 // GROUP_UPDATE_FLAG_POSITION
-    data << uint16(player->GetPositionY());                 // GROUP_UPDATE_FLAG_POSITION
+
+    //verify player coordinates and zoneid to send to teammates
+    uint16 iZoneId = 0;
+    uint16 iCoordX = 0;
+    uint16 iCoordY = 0;
+
+    if (player->IsInWorld())
+    {
+        iZoneId = player->GetZoneId();
+        iCoordX = player->GetPositionX();
+        iCoordY = player->GetPositionY();
+    }
+    else if (player->IsBeingTeleported())               // Player is in teleportation
+    {
+        WorldLocation& loc = player->GetTeleportDest(); // So take teleportation destination
+        iZoneId = sTerrainMgr.GetZoneId(loc.mapid, loc.coord_x, loc.coord_y, loc.coord_z);
+        iCoordX = loc.coord_x;
+        iCoordY = loc.coord_y;
+    }
+    else
+    {
+        //unknown player status.
+    }
+
+    data << uint16(iZoneId);                              // GROUP_UPDATE_FLAG_ZONE
+    data << uint16(iCoordX);                              // GROUP_UPDATE_FLAG_POSITION
+    data << uint16(iCoordY);                              // GROUP_UPDATE_FLAG_POSITION
 
     uint64 auramask = 0;
     size_t maskPos = data.wpos();

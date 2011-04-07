@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2009-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -310,7 +310,7 @@ bool CreatureEventAI::ProcessEvent(CreatureEventAIHolder& pHolder, Unit* pAction
         case EVENT_T_REACHED_HOME:
         case EVENT_T_RECEIVE_EMOTE:
             break;
-        case EVENT_T_BUFFED:
+        case EVENT_T_AURA:
         {
             SpellAuraHolder* holder = m_creature->GetSpellAuraHolder(event.buffed.spellId);
             if (!holder || holder->GetStackAmount() < event.buffed.amount)
@@ -320,13 +320,12 @@ bool CreatureEventAI::ProcessEvent(CreatureEventAIHolder& pHolder, Unit* pAction
             pHolder.UpdateRepeatTimer(m_creature,event.buffed.repeatMin,event.buffed.repeatMax);
             break;
         }
-        case EVENT_T_TARGET_BUFFED:
+        case EVENT_T_TARGET_AURA:
         {
-            //Prevent event from occuring on no unit
-            if (!pActionInvoker)
+            if (!m_creature->isInCombat() || !m_creature->getVictim())
                 return false;
 
-            SpellAuraHolder* holder = pActionInvoker->GetSpellAuraHolder(event.buffed.spellId);
+            SpellAuraHolder* holder = m_creature->getVictim()->GetSpellAuraHolder(event.buffed.spellId);
             if(!holder || holder->GetStackAmount() < event.buffed.amount)
                 return false;
 
@@ -334,9 +333,22 @@ bool CreatureEventAI::ProcessEvent(CreatureEventAIHolder& pHolder, Unit* pAction
             pHolder.UpdateRepeatTimer(m_creature,event.buffed.repeatMin,event.buffed.repeatMax);
             break;
         }
-        case EVENT_T_MISSING_BUFF:
+        case EVENT_T_MISSING_AURA:
         {
             SpellAuraHolder* holder = m_creature->GetSpellAuraHolder(event.buffed.spellId);
+            if (holder && holder->GetStackAmount() >= event.buffed.amount)
+                return false;
+
+            //Repeat Timers
+            pHolder.UpdateRepeatTimer(m_creature,event.buffed.repeatMin,event.buffed.repeatMax);
+            break;
+        }
+        case EVENT_T_TARGET_MISSING_AURA:
+        {
+            if (!m_creature->isInCombat() || !m_creature->getVictim())
+                return false;
+
+            SpellAuraHolder* holder = m_creature->getVictim()->GetSpellAuraHolder(event.buffed.spellId);
             if (holder && holder->GetStackAmount() >= event.buffed.amount)
                 return false;
 
@@ -445,16 +457,10 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
         case ACTION_T_SET_FACTION:
         {
             if (action.set_faction.factionId)
-                m_creature->setFaction(action.set_faction.factionId);
-            else
-            {
-                if (CreatureInfo const* ci = GetCreatureTemplateStore(m_creature->GetEntry()))
-                {
-                    //if no id provided, assume reset and then use default
-                    if (m_creature->getFaction() != ci->faction_A)
-                        m_creature->setFaction(ci->faction_A);
-                }
-            }
+                m_creature->SetFactionTemporary(action.set_faction.factionId, action.set_faction.factionFlags);
+            else                                            // no id provided, assume reset and then use default
+                m_creature->ClearTemporaryFaction();
+
             break;
         }
         case ACTION_T_MORPH_TO_ENTRY_OR_MODEL:
@@ -464,7 +470,7 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
                 //set model based on entry from creature_template
                 if (action.morph.creatureId)
                 {
-                    if (CreatureInfo const* ci = GetCreatureTemplateStore(action.morph.creatureId))
+                    if (CreatureInfo const* ci = ObjectMgr::GetCreatureTemplate(action.morph.creatureId))
                     {
                         uint32 display_id = Creature::ChooseDisplayId(ci);
                         m_creature->SetDisplayId(display_id);
@@ -528,10 +534,14 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
                                 m_creature->GetMotionMaster()->Clear(false);
                                 m_creature->GetMotionMaster()->MoveChase(m_creature->getVictim(), m_AttackDistance, m_AttackAngle);
                                 break;
+                            default:
+                                break;
                         }
                     }
                     break;
                 }
+                default:
+                    break;
             }
 
             break;
@@ -820,7 +830,7 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
                 // set model based on entry from creature_template
                 if (action.mount.creatureId)
                 {
-                    if (CreatureInfo const* cInfo = GetCreatureTemplateStore(action.mount.creatureId))
+                    if (CreatureInfo const* cInfo = ObjectMgr::GetCreatureTemplate(action.mount.creatureId))
                     {
                         uint32 display_id = Creature::ChooseDisplayId(cInfo);
                         m_creature->Mount(display_id);
@@ -1072,13 +1082,13 @@ void CreatureEventAI::MoveInLineOfSight(Unit *who)
         }
     }
 
-    if (m_creature->isCivilian() || m_creature->IsNeutralToAll())
+    if (m_creature->IsCivilian() || m_creature->IsNeutralToAll())
         return;
 
     if (m_creature->CanInitiateAttack() && who->isTargetableForAttack() &&
         m_creature->IsHostileTo(who) && who->isInAccessablePlaceFor(m_creature))
     {
-        if (!m_creature->canFly() && m_creature->GetDistanceZ(who) > CREATURE_Z_ATTACK_RANGE)
+        if (!m_creature->CanFly() && m_creature->GetDistanceZ(who) > CREATURE_Z_ATTACK_RANGE)
             return;
 
         float attackRadius = m_creature->GetAttackDistance(who);
@@ -1158,6 +1168,10 @@ void CreatureEventAI::UpdateAI(const uint32 diff)
                     case EVENT_T_TARGET_HP:
                     case EVENT_T_TARGET_CASTING:
                     case EVENT_T_FRIENDLY_HP:
+                    case EVENT_T_AURA:
+                    case EVENT_T_TARGET_AURA:
+                    case EVENT_T_MISSING_AURA:
+                    case EVENT_T_TARGET_MISSING_AURA:
                         if (Combat)
                             ProcessEvent(*i);
                         break;
@@ -1242,8 +1256,8 @@ Unit* CreatureEventAI::DoSelectLowestHpFriendly(float range, uint32 MinHPDiff)
 {
     Unit* pUnit = NULL;
 
-    MaNGOS::MostHPMissingInRange u_check(m_creature, range, MinHPDiff);
-    MaNGOS::UnitLastSearcher<MaNGOS::MostHPMissingInRange> searcher(m_creature, pUnit, u_check);
+    MaNGOS::MostHPMissingInRangeCheck u_check(m_creature, range, MinHPDiff);
+    MaNGOS::UnitLastSearcher<MaNGOS::MostHPMissingInRangeCheck> searcher(pUnit, u_check);
 
     /*
     typedef TYPELIST_4(GameObject, Creature*except pets*, DynamicObject, Corpse*Bones*) AllGridObjectTypes;
@@ -1255,15 +1269,15 @@ Unit* CreatureEventAI::DoSelectLowestHpFriendly(float range, uint32 MinHPDiff)
 
 void CreatureEventAI::DoFindFriendlyCC(std::list<Creature*>& _list, float range)
 {
-    MaNGOS::FriendlyCCedInRange u_check(m_creature, range);
-    MaNGOS::CreatureListSearcher<MaNGOS::FriendlyCCedInRange> searcher(m_creature, _list, u_check);
+    MaNGOS::FriendlyCCedInRangeCheck u_check(m_creature, range);
+    MaNGOS::CreatureListSearcher<MaNGOS::FriendlyCCedInRangeCheck> searcher(_list, u_check);
     Cell::VisitGridObjects(m_creature, searcher, range);
 }
 
 void CreatureEventAI::DoFindFriendlyMissingBuff(std::list<Creature*>& _list, float range, uint32 spellid)
 {
-    MaNGOS::FriendlyMissingBuffInRange u_check(m_creature, range, spellid);
-    MaNGOS::CreatureListSearcher<MaNGOS::FriendlyMissingBuffInRange> searcher(m_creature, _list, u_check);
+    MaNGOS::FriendlyMissingBuffInRangeCheck u_check(m_creature, range, spellid);
+    MaNGOS::CreatureListSearcher<MaNGOS::FriendlyMissingBuffInRangeCheck> searcher(_list, u_check);
     Cell::VisitGridObjects(m_creature,searcher, range);
 }
 
@@ -1315,46 +1329,32 @@ void CreatureEventAI::DoScriptText(int32 textEntry, WorldObject* pSource, Unit* 
     switch((*i).second.Type)
     {
         case CHAT_TYPE_SAY:
-            pSource->MonsterSay(textEntry, (*i).second.Language, target ? target->GetGUID() : 0);
+            pSource->MonsterSay(textEntry, (*i).second.Language, target);
             break;
         case CHAT_TYPE_YELL:
-            pSource->MonsterYell(textEntry, (*i).second.Language, target ? target->GetGUID() : 0);
+            pSource->MonsterYell(textEntry, (*i).second.Language, target);
             break;
         case CHAT_TYPE_TEXT_EMOTE:
-            pSource->MonsterTextEmote(textEntry, target ? target->GetGUID() : 0);
+            pSource->MonsterTextEmote(textEntry, target);
             break;
         case CHAT_TYPE_BOSS_EMOTE:
-            pSource->MonsterTextEmote(textEntry, target ? target->GetGUID() : 0, true);
+            pSource->MonsterTextEmote(textEntry, target, true);
             break;
         case CHAT_TYPE_WHISPER:
         {
             if (target && target->GetTypeId() == TYPEID_PLAYER)
-                pSource->MonsterWhisper(textEntry, target->GetGUID());
+                pSource->MonsterWhisper(textEntry, target);
             else sLog.outErrorDb("CreatureEventAI: DoScriptText entry %i cannot whisper without target unit (TYPEID_PLAYER).", textEntry);
         }break;
         case CHAT_TYPE_BOSS_WHISPER:
         {
             if (target && target->GetTypeId() == TYPEID_PLAYER)
-                pSource->MonsterWhisper(textEntry, target->GetGUID(), true);
+                pSource->MonsterWhisper(textEntry, target, true);
             else sLog.outErrorDb("CreatureEventAI: DoScriptText entry %i cannot whisper without target unit (TYPEID_PLAYER).", textEntry);
         }break;
         case CHAT_TYPE_ZONE_YELL:
-            pSource->MonsterYellToZone(textEntry, (*i).second.Language, target ? target->GetGUID() : 0);
+            pSource->MonsterYellToZone(textEntry, (*i).second.Language, target);
             break;
-    }
-}
-
-void CreatureEventAI::DoMeleeAttackIfReady()
-{
-    //Make sure our attack is ready before checking distance
-    if (m_creature->isAttackReady())
-    {
-        //If we are within range melee the target
-        if (m_creature->IsWithinDistInMap(m_creature->getVictim(), ATTACK_DISTANCE))
-        {
-            m_creature->AttackerStateUpdate(m_creature->getVictim());
-            m_creature->resetAttackTimer();
-        }
     }
 }
 
@@ -1370,7 +1370,7 @@ bool CreatureEventAI::CanCast(Unit* Target, SpellEntry const *Spell, bool Trigge
         return false;
 
     //Check for power
-    if (!Triggered && m_creature->GetPower((Powers)Spell->powerType) < Spell->manaCost)
+    if (!Triggered && m_creature->GetPower((Powers)Spell->powerType) < Spell::CalculatePowerCost(Spell, m_creature))
         return false;
 
     SpellRangeEntry const *TempRange = NULL;

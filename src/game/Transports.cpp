@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 #include "WorldPacket.h"
 #include "DBCStores.h"
 #include "ProgressBar.h"
-#include "ScriptCalls.h"
+#include "ScriptMgr.h"
 
 void MapManager::LoadTransports()
 {
@@ -91,8 +91,16 @@ void MapManager::LoadTransports()
         uint32 mapid;
         x = t->m_WayPoints[0].x; y = t->m_WayPoints[0].y; z = t->m_WayPoints[0].z; mapid = t->m_WayPoints[0].mapid; o = 1;
 
+        //current code does not support transports in dungeon!
+        const MapEntry* pMapInfo = sMapStore.LookupEntry(mapid);
+        if(!pMapInfo || pMapInfo->Instanceable())
+        {
+            delete t;
+            continue;
+        }
+
         // creates the Gameobject
-        if(!t->Create(entry, mapid, x, y, z, o, 100, 0))
+        if (!t->Create(entry, mapid, x, y, z, o, GO_ANIMPROGRESS_DEFAULT, 0))
         {
             delete t;
             continue;
@@ -138,7 +146,7 @@ Transport::Transport() : GameObject()
     m_updateFlag = (UPDATEFLAG_TRANSPORT | UPDATEFLAG_HIGHGUID | UPDATEFLAG_HAS_POSITION | UPDATEFLAG_ROTATION);
 }
 
-bool Transport::Create(uint32 guidlow, uint32 mapid, float x, float y, float z, float ang, uint32 animprogress, uint32 dynflags)
+bool Transport::Create(uint32 guidlow, uint32 mapid, float x, float y, float z, float ang, uint8 animprogress, uint16 dynamicHighValue)
 {
     Relocate(x,y,z,ang);
     // instance id and phaseMask isn't set to values different from std.
@@ -166,7 +174,7 @@ bool Transport::Create(uint32 guidlow, uint32 mapid, float x, float y, float z, 
 
     SetUInt32Value(GAMEOBJECT_FACTION, goinfo->faction);
     //SetUInt32Value(GAMEOBJECT_FLAGS, goinfo->flags);
-    SetUInt32Value(GAMEOBJECT_FLAGS, MAKE_PAIR32(0x28, 0x64));
+    SetUInt32Value(GAMEOBJECT_FLAGS, (GO_FLAG_TRANSPORT | GO_FLAG_NODESPAWN));
     SetUInt32Value(GAMEOBJECT_LEVEL, m_period);
     SetEntry(goinfo->id);
 
@@ -174,10 +182,12 @@ bool Transport::Create(uint32 guidlow, uint32 mapid, float x, float y, float z, 
 
     SetGoState(GO_STATE_READY);
     SetGoType(GameobjectTypes(goinfo->type));
-
+    SetGoArtKit(0);
     SetGoAnimProgress(animprogress);
-    if(dynflags)
-        SetUInt32Value(GAMEOBJECT_DYNAMIC, MAKE_PAIR32(0, dynflags));
+
+    // low part always 0, dynamicHighValue is some kind of progression (not implemented)
+    SetUInt16Value(GAMEOBJECT_DYNAMIC, 0, 0);
+    SetUInt16Value(GAMEOBJECT_DYNAMIC, 1, dynamicHighValue);
 
     SetName(goinfo->name);
 
@@ -408,9 +418,10 @@ bool Transport::GenerateWaypoints(uint32 pathid, std::set<uint32> &mapids)
 
     //    sLog.outDetail("    Generated %lu waypoints, total time %u.", (unsigned long)m_WayPoints.size(), timer);
 
-    m_curr = m_WayPoints.begin();
-    m_curr = GetNextWayPoint();
-    m_next = GetNextWayPoint();
+    m_next = m_WayPoints.begin();                           // will used in MoveToNextWayPoint for init m_curr
+    MoveToNextWayPoint();                                   // m_curr -> first point
+    MoveToNextWayPoint();                                   // skip first point
+
     m_pathTime = timer;
 
     m_nextNodeTime = m_curr->first;
@@ -418,13 +429,13 @@ bool Transport::GenerateWaypoints(uint32 pathid, std::set<uint32> &mapids)
     return true;
 }
 
-Transport::WayPointMap::const_iterator Transport::GetNextWayPoint()
+void Transport::MoveToNextWayPoint()
 {
-    WayPointMap::const_iterator iter = m_curr;
-    ++iter;
-    if (iter == m_WayPoints.end())
-        iter = m_WayPoints.begin();
-    return iter;
+    m_curr = m_next;
+
+    ++m_next;
+    if (m_next == m_WayPoints.end())
+        m_next = m_WayPoints.begin();
 }
 
 void Transport::TeleportTransport(uint32 newMapid, float x, float y, float z)
@@ -485,19 +496,18 @@ bool Transport::RemovePassenger(Player* passenger)
     return true;
 }
 
-void Transport::Update(uint32 /*p_time*/)
+void Transport::Update( uint32 update_diff, uint32 /*p_time*/)
 {
     if (m_WayPoints.size() <= 1)
         return;
 
-    m_timer = getMSTime() % m_period;
+    m_timer = WorldTimer::getMSTime() % m_period;
     while (((m_timer - m_curr->first) % m_pathTime) > ((m_next->first - m_curr->first) % m_pathTime))
     {
 
         DoEventIfAny(*m_curr,true);
 
-        m_curr = GetNextWayPoint();
-        m_next = GetNextWayPoint();
+        MoveToNextWayPoint();
 
         DoEventIfAny(*m_curr,false);
 
@@ -566,9 +576,9 @@ void Transport::DoEventIfAny(WayPointMap::value_type const& node, bool departure
 {
     if (uint32 eventid = departure ? node.second.departureEventID : node.second.arrivalEventID)
     {
-        DEBUG_FILTER_LOG(LOG_FILTER_TRANSPORT_MOVES, "Taxi %s event %u of node %u of %s (%s) path", departure ? "departure" : "arrival", eventid, node.first, GetName(), GetObjectGuid().GetString().c_str());
+        DEBUG_FILTER_LOG(LOG_FILTER_TRANSPORT_MOVES, "Taxi %s event %u of node %u of %s \"%s\") path", departure ? "departure" : "arrival", eventid, node.first, GetGuidStr().c_str(), GetName());
 
-        if (!Script->ProcessEventId(eventid, this, this, departure))
+        if (!sScriptMgr.OnProcessEvent(eventid, this, this, departure))
             GetMap()->ScriptsStart(sEventScripts, eventid, this, this);
     }
 }

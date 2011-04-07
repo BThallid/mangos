@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,10 +43,10 @@ class MANGOS_DLL_SPEC Camera
         // set camera's view to any worldobject
         // Note: this worldobject must be in same map, in same phase with camera's owner(player)
         // client supports only unit and dynamic objects as farsight objects
-        void SetView(WorldObject *obj);
+        void SetView(WorldObject *obj, bool update_far_sight_field = true);
 
         // set view to camera's owner
-        void ResetView();
+        void ResetView(bool update_far_sight_field = true);
 
         template<class T>
         void UpdateVisibilityOf(T * obj, UpdateData &d, std::set<WorldObject*>& vis);

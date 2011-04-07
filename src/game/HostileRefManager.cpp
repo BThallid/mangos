@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,12 @@
 #include "Unit.h"
 #include "DBCStructure.h"
 #include "SpellMgr.h"
+#include "Map.h"
+
+HostileRefManager::HostileRefManager( Unit *pOwner ) : iOwner(pOwner), m_redirectionMod(0.0f)
+{
+
+}
 
 HostileRefManager::~HostileRefManager()
 {
@@ -34,17 +40,16 @@ HostileRefManager::~HostileRefManager()
 
 void HostileRefManager::threatAssist(Unit *pVictim, float pThreat, SpellEntry const *pThreatSpell, bool pSingleTarget)
 {
-    HostileReference* ref;
+    float redirectedMod = pVictim->getHostileRefManager().GetThreatRedirectionMod();
+    Unit* redirectedTarget = redirectedMod ? pVictim->getHostileRefManager().GetThreatRedirectionTarget() : NULL;
 
     uint32 size = pSingleTarget ? 1 : getSize();            // if pSingleTarget do not devide threat
-    ref = getFirst();
-    while(ref != NULL)
+    float threat = pThreat/size;
+    HostileReference* ref = getFirst();
+    while (ref)
     {
-        float threat = ThreatCalcHelper::calcThreat(pVictim, iOwner, pThreat, false, (pThreatSpell ? GetSpellSchoolMask(pThreatSpell) : SPELL_SCHOOL_MASK_NORMAL), pThreatSpell);
-        if(pVictim == getOwner())
-            ref->addThreat(float (threat) / size);          // It is faster to modify the threat durectly if possible
-        else
-            ref->getSource()->addThreat(pVictim, float (threat) / size);
+        ref->getSource()->addThreat(pVictim, threat, false, (pThreatSpell ? GetSpellSchoolMask(pThreatSpell) : SPELL_SCHOOL_MASK_NORMAL), pThreatSpell);
+
         ref = ref->next();
     }
 }
@@ -161,5 +166,11 @@ void HostileRefManager::setOnlineOfflineState(Unit *pCreature,bool pIsOnline)
         ref = nextRef;
     }
 }
+
+Unit* HostileRefManager::GetThreatRedirectionTarget() const
+{
+    return !m_redirectionTargetGuid.IsEmpty() ? iOwner->GetMap()->GetUnit(m_redirectionTargetGuid) : NULL;
+}
+
 
 //=================================================

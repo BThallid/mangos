@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ void MemberSlot::SetMemberStats(Player* player)
     Name   = player->GetName();
     Level  = player->getLevel();
     Class  = player->getClass();
-    ZoneId = player->GetZoneId();
+    ZoneId = player->IsInWorld() ? player->GetZoneId() : player->GetCachedZoneId();
 }
 
 void MemberSlot::UpdateLogoutTime()
@@ -204,7 +204,7 @@ bool Guild::AddMember(ObjectGuid plGuid, uint32 plRank)
         newmember.accountId = fields[4].GetInt32();
         delete result;
         if (newmember.Level < 1 || newmember.Level > STRONG_MAX_LEVEL ||
-            newmember.Class < CLASS_WARRIOR || newmember.Class >= MAX_CLASSES)
+            !((1 << (newmember.Class-1)) & CLASSMASK_ALL_PLAYABLE))
         {
             sLog.outError("%s has a broken data in field `characters` table, cannot add him to guild.", plGuid.GetString().c_str());
             return false;
@@ -456,7 +456,7 @@ bool Guild::LoadMembersFromDB(QueryResult *guildMembersResult)
             // the zone through xy coords .. this is a bit redundant, but shouldn't be called often
             newmember.ZoneId = Player::GetZoneIdFromDB(newmember.guid);
         }
-        if (newmember.Class < CLASS_WARRIOR || newmember.Class >= MAX_CLASSES) // can be at broken `class` field
+        if (!((1 << (newmember.Class-1)) & CLASSMASK_ALL_PLAYABLE)) // can be at broken `class` field
         {
             sLog.outError("%s has a broken data in field `characters`.`class`, deleting him from guild!", newmember.guid.GetString().c_str());
             CharacterDatabase.PExecute("DELETE FROM guild_member WHERE guid = '%u'", lowguid);
@@ -559,7 +559,7 @@ void Guild::BroadcastToGuild(WorldSession *session, const std::string& msg, uint
         {
             Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
-            if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_GCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetGUIDLow()) )
+            if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_GCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()) )
                 pl->GetSession()->SendPacket(&data);
         }
     }
@@ -576,7 +576,7 @@ void Guild::BroadcastToOfficers(WorldSession *session, const std::string& msg, u
 
             Player *pl = ObjectAccessor::FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
-            if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_OFFCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetGUIDLow()))
+            if (pl && pl->GetSession() && HasRankRight(pl->GetRank(),GR_RIGHT_OFFCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()))
                 pl->GetSession()->SendPacket(&data);
         }
     }
@@ -1174,7 +1174,7 @@ void Guild::LoadGuildBankFromDB()
         }
 
         Item *pItem = NewItemOrBag(proto);
-        if (!pItem->LoadFromDB(ItemGuid, 0, result))
+        if (!pItem->LoadFromDB(ItemGuid, fields))
         {
             CharacterDatabase.PExecute("DELETE FROM guild_bank_item WHERE guildid='%u' AND TabId='%u' AND SlotId='%u'", m_Id, uint32(TabId), uint32(SlotId));
             sLog.outError("Item GUID %u not found in item_instance, deleting from Guild Bank!", ItemGuid);
@@ -1705,8 +1705,8 @@ Item* Guild::_StoreItem( uint8 tab, uint8 slot, Item *pItem, uint32 count, bool 
 
         m_TabListMap[tab]->Slots[slot] = pItem;
 
-        pItem->SetUInt64Value(ITEM_FIELD_CONTAINED, 0);
-        pItem->SetUInt64Value(ITEM_FIELD_OWNER, 0);
+        pItem->SetGuidValue(ITEM_FIELD_CONTAINED, ObjectGuid());
+        pItem->SetGuidValue(ITEM_FIELD_OWNER, ObjectGuid());
         AddGBankItemToDB(GetId(), tab, slot, pItem->GetGUIDLow(), pItem->GetEntry());
         pItem->FSetState(ITEM_NEW);
         pItem->SaveToDB();                                  // not in inventory and can be save standalone

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,7 +66,7 @@ class Weather
         uint32 m_zone;
         WeatherType m_type;
         float m_grade;
-        IntervalTimer m_timer;
+        ShortIntervalTimer m_timer;
         WeatherZoneChances const* m_weatherChances;
 };
 #endif

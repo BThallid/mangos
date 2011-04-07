@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -182,10 +182,10 @@ void BattleGroundAB::AddPlayer(Player *plr)
     //create score and add it to map, default values are set in the constructor
     BattleGroundABScore* sc = new BattleGroundABScore;
 
-    m_PlayerScores[plr->GetGUID()] = sc;
+    m_PlayerScores[plr->GetObjectGuid()] = sc;
 }
 
-void BattleGroundAB::RemovePlayer(Player * /*plr*/, uint64 /*guid*/)
+void BattleGroundAB::RemovePlayer(Player * /*plr*/, ObjectGuid /*guid*/)
 {
 
 }
@@ -335,12 +335,12 @@ void BattleGroundAB::EventPlayerClickedOnFlag(Player *source, GameObject* target
     if (GetStatus() != STATUS_IN_PROGRESS)
         return;
 
-    uint8 event = (sBattleGroundMgr.GetGameObjectEventIndex(target_obj->GetDBTableGUIDLow())).event1;
+    uint8 event = (sBattleGroundMgr.GetGameObjectEventIndex(target_obj->GetGUIDLow())).event1;
     if (event >= BG_AB_NODES_MAX)                           // not a node
         return;
     BG_AB_Nodes node = BG_AB_Nodes(event);
 
-    BattleGroundTeamId teamIndex = GetTeamIndexByTeamId(source->GetTeam());
+    BattleGroundTeamIndex teamIndex = GetTeamIndexByTeamId(source->GetTeam());
 
     // Check if player really could use this banner, not cheated
     if (!(m_Nodes[node] == 0 || teamIndex == m_Nodes[node] % 2))
@@ -484,7 +484,7 @@ void BattleGroundAB::Reset()
 
 }
 
-void BattleGroundAB::EndBattleGround(uint32 winner)
+void BattleGroundAB::EndBattleGround(Team winner)
 {
     //win reward
     if (winner == ALLIANCE)
@@ -500,7 +500,7 @@ void BattleGroundAB::EndBattleGround(uint32 winner)
 
 WorldSafeLocsEntry const* BattleGroundAB::GetClosestGraveYard(Player* player)
 {
-    BattleGroundTeamId teamIndex = GetTeamIndexByTeamId(player->GetTeam());
+    BattleGroundTeamIndex teamIndex = GetTeamIndexByTeamId(player->GetTeam());
 
     // Is there any occupied node for this team?
     std::vector<uint8> nodes;
@@ -539,7 +539,7 @@ WorldSafeLocsEntry const* BattleGroundAB::GetClosestGraveYard(Player* player)
 
 void BattleGroundAB::UpdatePlayerScore(Player *Source, uint32 type, uint32 value)
 {
-    BattleGroundScoreMap::iterator itr = m_PlayerScores.find(Source->GetGUID());
+    BattleGroundScoreMap::iterator itr = m_PlayerScores.find(Source->GetObjectGuid());
     if( itr == m_PlayerScores.end() )                         // player not found...
         return;
 
@@ -557,7 +557,7 @@ void BattleGroundAB::UpdatePlayerScore(Player *Source, uint32 type, uint32 value
     }
 }
 
-bool BattleGroundAB::IsAllNodesConrolledByTeam(uint32 team) const
+bool BattleGroundAB::IsAllNodesConrolledByTeam(Team team) const
 {
     uint32 count = 0;
     for (int i = 0; i < BG_AB_NODES_MAX; ++i)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,8 +45,8 @@ class Bag : public Item
         Item* GetItemByPos( uint8 slot ) const;
         Item* GetItemByEntry( uint32 item ) const;
         Item* GetItemByLimitedCategory(uint32 limitedCategory) const;
-        uint32 GetItemCount( uint32 item, Item* eItem = NULL ) const;
-        uint32 GetItemCountWithLimitCategory(uint32 limitCategory) const;
+        uint32 GetItemCount(uint32 item, Item* eItem = NULL) const;
+        uint32 GetItemCountWithLimitCategory(uint32 limitCategory, Item* eItem = NULL) const;
 
         uint8 GetSlotByItemGUID(uint64 guid) const;
         bool IsEmpty() const;
@@ -57,7 +57,7 @@ class Bag : public Item
         // overwrite virtual Item::SaveToDB
         void SaveToDB();
         // overwrite virtual Item::LoadFromDB
-        bool LoadFromDB(uint32 guid, uint64 owner_guid, QueryResult *result);
+        bool LoadFromDB(uint32 guidLow, Field *fields, ObjectGuid ownerGuid = ObjectGuid());
         // overwrite virtual Item::DeleteFromDB
         void DeleteFromDB();
 
@@ -71,6 +71,10 @@ class Bag : public Item
 
 inline Item* NewItemOrBag(ItemPrototype const * proto)
 {
-    return (proto->InventoryType == INVTYPE_BAG) ? new Bag : new Item;
+    if (proto->InventoryType == INVTYPE_BAG)
+        return new Bag;
+
+    return new Item;
 }
+
 #endif

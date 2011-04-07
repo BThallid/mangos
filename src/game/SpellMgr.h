@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 #include "SpellAuraDefines.h"
 #include "DBCStructure.h"
 #include "DBCStores.h"
-#include "Database/SQLStorage.h"
+#include "SQLStorages.h"
 
 #include "Utilities/UnorderedMapSet.h"
 
@@ -35,6 +35,7 @@
 
 class Player;
 class Spell;
+class Unit;
 struct CreatureInfo;
 struct SpellModifier;
 
@@ -44,28 +45,6 @@ enum SpellCategories
     SPELLCATEGORY_HEALTH_MANA_POTIONS = 4,
     SPELLCATEGORY_DEVOUR_MAGIC        = 12,
     SPELLCATEGORY_JUDGEMENT           = 1210,               // Judgement (seal trigger)
-};
-
-enum SpellFamilyNames
-{
-    SPELLFAMILY_GENERIC     = 0,
-    SPELLFAMILY_UNK1        = 1,                            // events, holidays
-    // 2 - unused
-    SPELLFAMILY_MAGE        = 3,
-    SPELLFAMILY_WARRIOR     = 4,
-    SPELLFAMILY_WARLOCK     = 5,
-    SPELLFAMILY_PRIEST      = 6,
-    SPELLFAMILY_DRUID       = 7,
-    SPELLFAMILY_ROGUE       = 8,
-    SPELLFAMILY_HUNTER      = 9,
-    SPELLFAMILY_PALADIN     = 10,
-    SPELLFAMILY_SHAMAN      = 11,
-    SPELLFAMILY_UNK2        = 12,                           // 2 spells (silence resistance)
-    SPELLFAMILY_POTION      = 13,
-    // 14 - unused
-    SPELLFAMILY_DEATHKNIGHT = 15,
-    // 16 - unused
-    SPELLFAMILY_PET         = 17
 };
 
 //Some SpellFamilyFlags
@@ -130,6 +109,7 @@ inline float GetSpellMaxRange(SpellRangeEntry const *range, bool friendly = fals
 inline uint32 GetSpellRecoveryTime(SpellEntry const *spellInfo) { return spellInfo->RecoveryTime > spellInfo->CategoryRecoveryTime ? spellInfo->RecoveryTime : spellInfo->CategoryRecoveryTime; }
 int32 GetSpellDuration(SpellEntry const *spellInfo);
 int32 GetSpellMaxDuration(SpellEntry const *spellInfo);
+int32 CalculateSpellDuration(SpellEntry const *spellInfo, Unit const* caster = NULL);
 uint16 GetSpellAuraMaxTicks(SpellEntry const* spellInfo);
 WeaponAttackType GetWeaponAttackType(SpellEntry const *spellInfo);
 
@@ -141,7 +121,7 @@ inline bool IsSpellHaveEffect(SpellEntry const *spellInfo, SpellEffects effect)
     return false;
 }
 
-inline bool IsSpellAppliesAura(SpellEntry const *spellInfo, uint32 effectMask)
+inline bool IsSpellAppliesAura(SpellEntry const *spellInfo, uint32 effectMask = ((1 << EFFECT_INDEX_0) | (1 << EFFECT_INDEX_1) | (1 << EFFECT_INDEX_2)))
 {
     for(int i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
@@ -262,7 +242,8 @@ inline bool IsNonCombatSpell(SpellEntry const *spellInfo)
 }
 
 bool IsPositiveSpell(uint32 spellId);
-bool IsPositiveEffect(uint32 spellId, SpellEffectIndex effIndex);
+bool IsPositiveSpell(SpellEntry const *spellproto);
+bool IsPositiveEffect(SpellEntry const *spellInfo, SpellEffectIndex effIndex);
 bool IsPositiveTarget(uint32 targetA, uint32 targetB);
 
 bool IsExplicitPositiveTarget(uint32 targetA);
@@ -288,7 +269,7 @@ inline bool IsCasterSourceTarget(uint32 target)
         case TARGET_TOTEM_WATER:
         case TARGET_TOTEM_AIR:
         case TARGET_TOTEM_FIRE:
-        case TARGET_AREAEFFECT_CUSTOM_2:
+        case TARGET_AREAEFFECT_GO_AROUND_DEST:
         case TARGET_ALL_RAID_AROUND_CASTER:
         case TARGET_SELF2:
         case TARGET_DIRECTLY_FORWARD:
@@ -380,7 +361,7 @@ inline bool IsAreaEffectTarget( Targets target )
         case TARGET_ALL_PARTY:
         case TARGET_ALL_PARTY_AROUND_CASTER_2:
         case TARGET_AREAEFFECT_PARTY:
-        case TARGET_AREAEFFECT_CUSTOM_2:
+        case TARGET_AREAEFFECT_GO_AROUND_DEST:
         case TARGET_ALL_RAID_AROUND_CASTER:
         case TARGET_AREAEFFECT_PARTY_AND_CLASS:
         case TARGET_IN_FRONT_OF_CASTER_30:
@@ -453,6 +434,11 @@ inline bool IsAutoRepeatRangedSpell(SpellEntry const* spellInfo)
     return (spellInfo->Attributes & SPELL_ATTR_RANGED) && (spellInfo->AttributesEx2 & SPELL_ATTR_EX2_AUTOREPEAT_FLAG);
 }
 
+inline bool IsSpellRequiresRangedAP(SpellEntry const* spellInfo)
+{
+    return (spellInfo->SpellFamilyName == SPELLFAMILY_HUNTER && spellInfo->DmgClass != SPELL_DAMAGE_CLASS_MELEE);
+}
+
 SpellCastResult GetErrorAtShapeshiftedCast (SpellEntry const *spellInfo, uint32 form);
 
 inline bool IsChanneledSpell(SpellEntry const* spellInfo)
@@ -460,9 +446,19 @@ inline bool IsChanneledSpell(SpellEntry const* spellInfo)
     return (spellInfo->AttributesEx & (SPELL_ATTR_EX_CHANNELED_1 | SPELL_ATTR_EX_CHANNELED_2));
 }
 
+inline bool IsNeedCastSpellAtFormApply(SpellEntry const* spellInfo, ShapeshiftForm form)
+{
+    if (!(spellInfo->Attributes & (SPELL_ATTR_PASSIVE | SPELL_ATTR_UNK7)) || !form)
+        return false;
+
+    // passive spells with SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT are already active without shapeshift, do no recast!
+    return (spellInfo->Stances & (1<<(form-1)) && !(spellInfo->AttributesEx2 & SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT));
+}
+
+
 inline bool NeedsComboPoints(SpellEntry const* spellInfo)
 {
-    return (spellInfo->AttributesEx & (SPELL_ATTR_EX_REQ_COMBO_POINTS1 | SPELL_ATTR_EX_REQ_COMBO_POINTS2));
+    return (spellInfo->AttributesEx & (SPELL_ATTR_EX_REQ_TARGET_COMBO_POINTS | SPELL_ATTR_EX_REQ_COMBO_POINTS));
 }
 
 inline SpellSchoolMask GetSpellSchoolMask(SpellEntry const* spellInfo)
@@ -470,13 +466,21 @@ inline SpellSchoolMask GetSpellSchoolMask(SpellEntry const* spellInfo)
     return SpellSchoolMask(spellInfo->SchoolMask);
 }
 
-inline uint32 GetSpellMechanicMask(SpellEntry const* spellInfo, int32 effect)
+inline uint32 GetSpellMechanicMask(SpellEntry const* spellInfo, uint32 effectMask)
 {
     uint32 mask = 0;
     if (spellInfo->Mechanic)
         mask |= 1 << (spellInfo->Mechanic - 1);
-    if (spellInfo->EffectMechanic[effect])
-        mask |= 1 << (spellInfo->EffectMechanic[effect] - 1);
+
+    for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+    {
+        if (!(effectMask & (1 << i)))
+            continue;
+
+        if (spellInfo->EffectMechanic[i])
+            mask |= 1 << (spellInfo->EffectMechanic[i]-1);
+    }
+
     return mask;
 }
 
@@ -549,8 +553,8 @@ enum ProcFlags
     PROC_FLAG_SUCCESSFUL_NEGATIVE_SPELL_HIT = 0x00010000,   // 16 Successful negative spell cast (by default only on damage)
     PROC_FLAG_TAKEN_NEGATIVE_SPELL_HIT      = 0x00020000,   // 17 Taken negative spell (by default only on damage)
 
-    PROC_FLAG_ON_DO_PERIODIC                = 0x00040000,   // 18 Successful do periodic (damage / healing, determined from 14-17 flags)
-    PROC_FLAG_ON_TAKE_PERIODIC              = 0x00080000,   // 19 Taken spell periodic (damage / healing, determined from 14-17 flags)
+    PROC_FLAG_ON_DO_PERIODIC                = 0x00040000,   // 18 Successful do periodic (damage / healing, determined by PROC_EX_PERIODIC_POSITIVE or negative if no procEx)
+    PROC_FLAG_ON_TAKE_PERIODIC              = 0x00080000,   // 19 Taken spell periodic (damage / healing, determined by PROC_EX_PERIODIC_POSITIVE or negative if no procEx)
 
     PROC_FLAG_TAKEN_ANY_DAMAGE              = 0x00100000,   // 20 Taken any damage
     PROC_FLAG_ON_TRAP_ACTIVATION            = 0x00200000,   // 21 On trap activation
@@ -594,7 +598,8 @@ enum ProcFlagsEx
     PROC_EX_RESERVED2           = 0x0004000,
     PROC_EX_RESERVED3           = 0x0008000,
     PROC_EX_EX_TRIGGER_ALWAYS   = 0x0010000,                // If set trigger always ( no matter another flags) used for drop charges
-    PROC_EX_EX_ONE_TIME_TRIGGER = 0x0020000                 // If set trigger always but only one time (not used)
+    PROC_EX_EX_ONE_TIME_TRIGGER = 0x0020000,                // If set trigger always but only one time (not used)
+    PROC_EX_PERIODIC_POSITIVE   = 0x0040000                 // For periodic heal
 };
 
 struct SpellProcEventEntry
@@ -615,6 +620,7 @@ struct SpellBonusEntry
     float  direct_damage;
     float  dot_damage;
     float  ap_bonus;
+    float  ap_dot_bonus;
 };
 
 typedef UNORDERED_MAP<uint32, SpellProcEventEntry> SpellProcEventMap;
@@ -627,9 +633,16 @@ typedef UNORDERED_MAP<uint32, SpellBonusEntry>     SpellBonusMap;
 #define ELIXIR_SHATTRATH_MASK 0x08
 #define ELIXIR_WELL_FED       0x10                          // Some foods have SPELLFAMILY_POTION
 
+struct SpellThreatEntry
+{
+    uint16 threat;
+    float multiplier;
+    float ap_bonus;
+};
+
 typedef std::map<uint32, uint8> SpellElixirMap;
 typedef std::map<uint32, float> SpellProcItemEnchantMap;
-typedef std::map<uint32, uint16> SpellThreatMap;
+typedef std::map<uint32, SpellThreatEntry> SpellThreatMap;
 
 // Spell script target related declarations (accessed using SpellMgr functions)
 enum SpellTargetType
@@ -851,13 +864,24 @@ class SpellMgr
                 return SPELL_NORMAL;
         }
 
-        uint16 GetSpellThreat(uint32 spellid) const
+        SpellThreatEntry const* GetSpellThreatEntry(uint32 spellid) const
         {
             SpellThreatMap::const_iterator itr = mSpellThreatMap.find(spellid);
-            if(itr==mSpellThreatMap.end())
-                return 0;
+            if (itr != mSpellThreatMap.end())
+                return &itr->second;
 
-            return itr->second;
+            return NULL;
+        }
+
+        float GetSpellThreatMultiplier(SpellEntry const *spellInfo) const
+        {
+            if (!spellInfo)
+                return 1.0f;
+
+            if (SpellThreatEntry const *entry = GetSpellThreatEntry(spellInfo->Id))
+                return entry->multiplier;
+
+            return 1.0f;
         }
 
         // Spell proc events
@@ -995,7 +1019,7 @@ class SpellMgr
 
         SpellLearnSpellMapBounds GetSpellLearnSpellMapBounds(uint32 spell_id) const
         {
-            return SpellLearnSpellMapBounds(mSpellLearnSpells.lower_bound(spell_id),mSpellLearnSpells.upper_bound(spell_id));
+            return mSpellLearnSpells.equal_range(spell_id);
         }
 
         bool IsSpellLearnToSpell(uint32 spell_id1,uint32 spell_id2) const
@@ -1018,15 +1042,15 @@ class SpellMgr
         // Spell script targets
         SpellScriptTargetBounds GetSpellScriptTargetBounds(uint32 spell_id) const
         {
-            return SpellScriptTargetBounds(mSpellScriptTarget.lower_bound(spell_id),mSpellScriptTarget.upper_bound(spell_id));
+            return mSpellScriptTarget.equal_range(spell_id);
         }
 
-        // Spell correctess for client using
+        // Spell correctness for client using
         static bool IsSpellValid(SpellEntry const * spellInfo, Player* pl = NULL, bool msg = true);
 
         SkillLineAbilityMapBounds GetSkillLineAbilityMapBounds(uint32 spell_id) const
         {
-            return SkillLineAbilityMapBounds(mSkillLineAbilityMap.lower_bound(spell_id),mSkillLineAbilityMap.upper_bound(spell_id));
+            return mSkillLineAbilityMap.equal_range(spell_id);
         }
 
         PetAura const* GetPetAura(uint32 spell_id, SpellEffectIndex eff)
@@ -1060,30 +1084,30 @@ class SpellMgr
 
         SpellAreaMapBounds GetSpellAreaMapBounds(uint32 spell_id) const
         {
-            return SpellAreaMapBounds(mSpellAreaMap.lower_bound(spell_id),mSpellAreaMap.upper_bound(spell_id));
+            return mSpellAreaMap.equal_range(spell_id);
         }
 
         SpellAreaForQuestMapBounds GetSpellAreaForQuestMapBounds(uint32 quest_id, bool active) const
         {
-            if(active)
-                return SpellAreaForQuestMapBounds(mSpellAreaForActiveQuestMap.lower_bound(quest_id),mSpellAreaForActiveQuestMap.upper_bound(quest_id));
+            if (active)
+                return mSpellAreaForActiveQuestMap.equal_range(quest_id);
             else
-                return SpellAreaForQuestMapBounds(mSpellAreaForQuestMap.lower_bound(quest_id),mSpellAreaForQuestMap.upper_bound(quest_id));
+                return mSpellAreaForQuestMap.equal_range(quest_id);
         }
 
         SpellAreaForQuestMapBounds GetSpellAreaForQuestEndMapBounds(uint32 quest_id) const
         {
-            return SpellAreaForQuestMapBounds(mSpellAreaForQuestEndMap.lower_bound(quest_id),mSpellAreaForQuestEndMap.upper_bound(quest_id));
+            return mSpellAreaForQuestEndMap.equal_range(quest_id);
         }
 
         SpellAreaForAuraMapBounds GetSpellAreaForAuraMapBounds(uint32 spell_id) const
         {
-            return SpellAreaForAuraMapBounds(mSpellAreaForAuraMap.lower_bound(spell_id),mSpellAreaForAuraMap.upper_bound(spell_id));
+            return mSpellAreaForAuraMap.equal_range(spell_id);
         }
 
         SpellAreaForAreaMapBounds GetSpellAreaForAreaMapBounds(uint32 area_id) const
         {
-            return SpellAreaForAreaMapBounds(mSpellAreaForAreaMap.lower_bound(area_id),mSpellAreaForAreaMap.upper_bound(area_id));
+            return mSpellAreaForAreaMap.equal_range(area_id);
         }
 
     // Modifiers

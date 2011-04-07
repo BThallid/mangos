@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include "Log.h"
 #include "Opcodes.h"
 #include "Spell.h"
-#include "ScriptCalls.h"
+#include "ScriptMgr.h"
 #include "Totem.h"
 #include "SpellAuras.h"
 
@@ -99,9 +99,17 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    // not allow use item from trade (cheat way only)
+    if (pItem->IsInTrade())
+    {
+        recvPacket.rpos(recvPacket.wpos());                 // prevent spam at not read packet tail
+        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, NULL );
+        return;
+    }
+
     // only allow conjured consumable, bandage, poisons (all should have the 2^21 item flag set in DB)
     if (proto->Class == ITEM_CLASS_CONSUMABLE &&
-        !(proto->Flags & ITEM_FLAGS_USEABLE_IN_ARENA) &&
+        !(proto->Flags & ITEM_FLAG_USEABLE_IN_ARENA) &&
         pUser->InArena())
     {
         recvPacket.rpos(recvPacket.wpos());                 // prevent spam at not read packet tail
@@ -169,7 +177,7 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
     }
 
     //Note: If script stop casting it must send appropriate data to client to prevent stuck item in gray state.
-    if(!Script->ItemUse(pUser,pItem,targets))
+    if (!sScriptMgr.OnItemUse(pUser, pItem, targets))
     {
         // no script or script not process request by self
         pUser->CastItemUseSpell(pItem,targets,cast_count,glyphIndex);
@@ -214,7 +222,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
 
     // locked item
     uint32 lockId = proto->LockID;
-    if(lockId)
+    if(lockId && !pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_UNLOCKED))
     {
         LockEntry const *lockInfo = sLockStore.LookupEntry(lockId);
 
@@ -233,7 +241,7 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
         }
     }
 
-    if(pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_FLAGS_WRAPPED))// wrapped?
+    if (pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_WRAPPED))// wrapped?
     {
         QueryResult *result = CharacterDatabase.PQuery("SELECT entry, flags FROM character_gifts WHERE item_guid = '%u'", pItem->GetGUIDLow());
         if (result)
@@ -254,19 +262,23 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
             pUser->DestroyItem(pItem->GetBagSlot(), pItem->GetSlot(), true);
             return;
         }
-        CharacterDatabase.PExecute("DELETE FROM character_gifts WHERE item_guid = '%u'", pItem->GetGUIDLow());
+
+        static SqlStatementID delGifts ;
+
+        SqlStatement stmt = CharacterDatabase.CreateStatement(delGifts, "DELETE FROM character_gifts WHERE item_guid = ?");
+        stmt.PExecute(pItem->GetGUIDLow());
     }
     else
-        pUser->SendLoot(pItem->GetGUID(),LOOT_CORPSE);
+        pUser->SendLoot(pItem->GetObjectGuid(),LOOT_CORPSE);
 }
 
 void WorldSession::HandleGameObjectUseOpcode( WorldPacket & recv_data )
 {
-    uint64 guid;
+    ObjectGuid guid;
 
     recv_data >> guid;
 
-    DEBUG_LOG( "WORLD: Recvd CMSG_GAMEOBJ_USE Message [guid=%u]", GUID_LOPART(guid));
+    DEBUG_LOG("WORLD: Recvd CMSG_GAMEOBJ_USE Message guid: %s", guid.GetString().c_str());
 
     // ignore for remote control state
     if (!_player->IsSelfMover())
@@ -277,22 +289,29 @@ void WorldSession::HandleGameObjectUseOpcode( WorldPacket & recv_data )
     if(!obj)
         return;
 
+    // Never expect this opcode for some type GO's
+    if (obj->GetGoType() == GAMEOBJECT_TYPE_GENERIC)
+    {
+        sLog.outError("HandleGameObjectUseOpcode: CMSG_GAMEOBJ_USE for not allowed GameObject type %u (Entry %u), didn't expect this to happen.", obj->GetGoType(), obj->GetEntry());
+        return;
+    }
+
     obj->Use(_player);
 }
 
 void WorldSession::HandleGameobjectReportUse(WorldPacket& recvPacket)
 {
-    uint64 guid;
+    ObjectGuid guid;
     recvPacket >> guid;
 
-    DEBUG_LOG( "WORLD: Recvd CMSG_GAMEOBJ_REPORT_USE Message [in game guid: %u]", GUID_LOPART(guid));
+    DEBUG_LOG("WORLD: Recvd CMSG_GAMEOBJ_REPORT_USE Message guid: %s", guid.GetString().c_str());
 
     // ignore for remote control state
     if (!_player->IsSelfMover())
         return;
 
     GameObject* go = GetPlayer()->GetMap()->GetGameObject(guid);
-    if(!go)
+    if (!go)
         return;
 
     if(!go->IsWithinDistInMap(_player,INTERACTION_DISTANCE))
@@ -469,7 +488,7 @@ void WorldSession::HandleCancelAuraOpcode( WorldPacket& recvPacket)
 
 void WorldSession::HandlePetCancelAuraOpcode( WorldPacket& recvPacket)
 {
-    uint64 guid;
+    ObjectGuid guid;
     uint32 spellId;
 
     recvPacket >> guid;
@@ -488,19 +507,19 @@ void WorldSession::HandlePetCancelAuraOpcode( WorldPacket& recvPacket)
 
     Creature* pet = GetPlayer()->GetMap()->GetAnyTypeCreature(guid);
 
-    if(!pet)
+    if (!pet)
     {
-        sLog.outError( "Pet %u not exist.", uint32(GUID_LOPART(guid)) );
+        sLog.outError("HandlePetCancelAuraOpcode - %s not exist.", guid.GetString().c_str());
         return;
     }
 
-    if(pet != GetPlayer()->GetPet() && pet != GetPlayer()->GetCharm())
+    if (guid != GetPlayer()->GetPetGuid() && guid != GetPlayer()->GetCharmGuid())
     {
-        sLog.outError( "HandlePetCancelAura.Pet %u isn't pet of player %s", uint32(GUID_LOPART(guid)),GetPlayer()->GetName() );
+        sLog.outError("HandlePetCancelAura. %s isn't pet of %s", guid.GetString().c_str(), GetPlayer()->GetGuidStr().c_str());
         return;
     }
 
-    if(!pet->isAlive())
+    if (!pet->isAlive())
     {
         pet->SendPetActionFeedback(FEEDBACK_PET_DEAD);
         return;
@@ -568,7 +587,7 @@ void WorldSession::HandleSelfResOpcode( WorldPacket & /*recv_data*/ )
 
 void WorldSession::HandleSpellClick( WorldPacket & recv_data )
 {
-    uint64 guid;
+    ObjectGuid guid;
     recv_data >> guid;
 
     if (_player->isInCombat())                              // client prevent click and set different icon at combat state

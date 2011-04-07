@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 #include "Errors.h"
 #include "Creature.h"
 #include "Player.h"
-#include "ObjectAccessor.h"
 #include "World.h"
 
 int GuardAI::Permissible(const Creature *creature)
@@ -38,7 +37,7 @@ GuardAI::GuardAI(Creature *c) : CreatureAI(c), i_victimGuid(0), i_state(STATE_NO
 void GuardAI::MoveInLineOfSight(Unit *u)
 {
     // Ignore Z for flying creatures
-    if (!m_creature->canFly() && m_creature->GetDistanceZ(u) > CREATURE_Z_ATTACK_RANGE)
+    if (!m_creature->CanFly() && m_creature->GetDistanceZ(u) > CREATURE_Z_ATTACK_RANGE)
         return;
 
     if (!m_creature->getVictim() && u->isTargetableForAttack() &&
@@ -113,14 +112,7 @@ void GuardAI::UpdateAI(const uint32 /*diff*/)
 
     i_victimGuid = m_creature->getVictim()->GetGUID();
 
-    if (m_creature->isAttackReady())
-    {
-        if (m_creature->IsWithinDistInMap(m_creature->getVictim(), ATTACK_DISTANCE))
-        {
-            m_creature->AttackerStateUpdate(m_creature->getVictim());
-            m_creature->resetAttackTimer();
-        }
-    }
+    DoMeleeAttackIfReady();
 }
 
 bool GuardAI::IsVisible(Unit *pl) const

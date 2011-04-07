@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ char const* ObjectGuid::GetTypeName(HighGuid high)
         case HIGHGUID_DYNAMICOBJECT:return "DynObject";
         case HIGHGUID_CORPSE:       return "Corpse";
         case HIGHGUID_MO_TRANSPORT: return "MoTransport";
+        case HIGHGUID_INSTANCE:     return "InstanceID";
         default:
             return "<unknown>";
     }
@@ -46,7 +47,7 @@ std::string ObjectGuid::GetString() const
 {
     std::ostringstream str;
     str << GetTypeName();
-    
+
     if (IsPlayer())
     {
         std::string name;
@@ -56,7 +57,7 @@ std::string ObjectGuid::GetString() const
 
     str << " (";
     if (HasEntry())
-        str << "Entry: " << GetEntry() << " ";
+        str << (IsPet() ? "Petnumber: " : "Entry: ") << GetEntry() << " ";
     str << "Guid: " << GetCounter() << ")";
     return str.str();
 }
@@ -105,3 +106,4 @@ template uint32 ObjectGuidGenerator<HIGHGUID_PET>::Generate();
 template uint32 ObjectGuidGenerator<HIGHGUID_VEHICLE>::Generate();
 template uint32 ObjectGuidGenerator<HIGHGUID_DYNAMICOBJECT>::Generate();
 template uint32 ObjectGuidGenerator<HIGHGUID_CORPSE>::Generate();
+template uint32 ObjectGuidGenerator<HIGHGUID_INSTANCE>::Generate();

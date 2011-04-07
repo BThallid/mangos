@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,31 @@
 #ifndef MANGOS_CALLBACK_H
 #define MANGOS_CALLBACK_H
 
+//defines to simplify multi param templates code and readablity
+#define TYPENAMES_1 typename T1
+#define TYPENAMES_2 TYPENAMES_1, typename T2
+#define TYPENAMES_3 TYPENAMES_2, typename T3
+#define TYPENAMES_4 TYPENAMES_3, typename T4
+#define TYPENAMES_5 TYPENAMES_4, typename T5
+#define TYPENAMES_6 TYPENAMES_5, typename T6
+#define TYPENAMES_7 TYPENAMES_6, typename T7
+#define TYPENAMES_8 TYPENAMES_7, typename T8
+#define TYPENAMES_9 TYPENAMES_8, typename T9
+#define TYPENAMES_10 TYPENAMES_9, typename T10
+
+#define PARAMS_1 T1 param1
+#define PARAMS_2 PARAMS_1, T2 param2
+#define PARAMS_3 PARAMS_2, T3 param3
+#define PARAMS_4 PARAMS_3, T4 param4
+#define PARAMS_5 PARAMS_4, T5 param5
+#define PARAMS_6 PARAMS_5, T6 param6
+#define PARAMS_7 PARAMS_6, T7 param7
+#define PARAMS_8 PARAMS_7, T8 param8
+#define PARAMS_9 PARAMS_8, T9 param9
+#define PARAMS_10 PARAMS_9, T10 param10
+
+//empty struct to use in templates instead of void type
+struct null { null() {} };
 /// ------------ BASE CLASSES ------------
 
 namespace MaNGOS
@@ -46,7 +71,7 @@ namespace MaNGOS
             }
 
             _Callback(_Callback<Class, ParamType1, ParamType2, ParamType3, ParamType4> const& cb)
-                : m_object(cb.object), m_method(cb.m_method),
+                : m_object(cb.m_object), m_method(cb.m_method),
                 m_param1(cb.m_param1), m_param2(cb.m_param2), m_param3(cb.m_param3), m_param4(cb.m_param4)
             {
             }
@@ -68,12 +93,12 @@ namespace MaNGOS
         public:
             _Callback(Class *object, Method method, ParamType1 param1, ParamType2 param2, ParamType3 param3)
                 : m_object(object), m_method(method),
-                m_param1(param1), m_param2(param2)
+                m_param1(param1), m_param2(param2), m_param3(param3)
             {
             }
 
             _Callback(_Callback<Class, ParamType1, ParamType2, ParamType3> const& cb)
-                : m_object(cb.object), m_method(cb.m_method),
+                : m_object(cb.m_object), m_method(cb.m_method),
                 m_param1(cb.m_param1), m_param2(cb.m_param2), m_param3(cb.m_param3)
             {
             }

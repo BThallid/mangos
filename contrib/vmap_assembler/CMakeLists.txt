@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2009 MaNGOS project <http://getmangos.com/>
+# Copyright (C) 2005-2011 MaNGOS project <http://getmangos.com/>
 #
 # This file is free software; as a special exception the author gives
 # unlimited permission to copy and/or distribute it, with or without
@@ -22,7 +22,7 @@ ADD_DEFINITIONS("-ggdb")
 ADD_DEFINITIONS("-O3")
 
 include_directories(../../src/shared)
-include_directories(../../src/shared/vmap/)
+include_directories(../../src/game/vmap/)
 include_directories(../../dep/include/g3dlite/)
 include_directories(../../dep/ACE_wrappers/)
 include_directories(../../objdir/dep/ACE_wrappers)
@@ -69,12 +69,12 @@ add_library(g3dlite ../../dep/src/g3dlite/AABox.cpp
 	)
 
 add_library(vmap
-	../../src/shared/vmap/BIH.cpp
-	../../src/shared/vmap/VMapManager2.cpp
-	../../src/shared/vmap/MapTree.cpp
-	../../src/shared/vmap/TileAssembler.cpp
-	../../src/shared/vmap/WorldModel.cpp
-	../../src/shared/vmap/ModelInstance.cpp
+	../../src/game/vmap/BIH.cpp
+	../../src/game/vmap/VMapManager2.cpp
+	../../src/game/vmap/MapTree.cpp
+	../../src/game/vmap/TileAssembler.cpp
+	../../src/game/vmap/WorldModel.cpp
+	../../src/game/vmap/ModelInstance.cpp
 	)
 
 target_link_libraries(vmap g3dlite z)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ class MANGOS_DLL_SPEC RandomMovementGenerator
 
         bool GetResetPosition(T&, float& x, float& y, float& z);
     private:
-        TimeTrackerSmall i_nextMoveTime;
+        ShortTimeTracker i_nextMoveTime;
 
         DestinationHolder< Traveller<T> > i_destinationHolder;
         uint32 i_nextMove;

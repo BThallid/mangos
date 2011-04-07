@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 INSTANTIATE_SINGLETON_1( AllianceChannelMgr );
 INSTANTIATE_SINGLETON_1( HordeChannelMgr );
 
-ChannelMgr* channelMgr(uint32 team)
+ChannelMgr* channelMgr(Team team)
 {
     if (sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHANNEL))
         return &MaNGOS::Singleton<AllianceChannelMgr>::Instance();        // cross-faction

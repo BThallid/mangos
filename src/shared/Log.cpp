@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -548,6 +548,30 @@ void Log::outError( const char * err, ... )
 
         fprintf(logfile, "\n" );
         fflush(logfile);
+    }
+
+    fflush(stderr);
+}
+
+void Log::outErrorDb()
+{
+    if (m_includeTime)
+        outTime();
+
+    fprintf( stderr, "\n" );
+
+    if (logfile)
+    {
+        outTimestamp(logfile);
+        fprintf(logfile, "ERROR:\n" );
+        fflush(logfile);
+    }
+
+    if (dberLogfile)
+    {
+        outTimestamp(dberLogfile);
+        fprintf(dberLogfile, "\n" );
+        fflush(dberLogfile);
     }
 
     fflush(stderr);

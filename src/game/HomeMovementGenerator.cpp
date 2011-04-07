@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -70,18 +70,20 @@ HomeMovementGenerator<Creature>::Update(Creature &owner, const uint32& time_diff
         owner.AddSplineFlag(SPLINEFLAG_WALKMODE);
 
         // restore orientation of not moving creature at returning to home
-        if(owner.GetDefaultMovementType()==IDLE_MOTION_TYPE)
+        if (owner.GetDefaultMovementType() == IDLE_MOTION_TYPE)
         {
-            if(CreatureData const* data = sObjectMgr.GetCreatureData(owner.GetDBTableGUIDLow()))
+            // such a mob might need very exact spawning point, hence relocate to spawn-position
+            if (CreatureData const* data = sObjectMgr.GetCreatureData(owner.GetGUIDLow()))
             {
-                owner.SetOrientation(data->orientation);
-                WorldPacket packet;
-                owner.BuildHeartBeatMsg(&packet);
-                owner.SendMessageToSet(&packet, false);
+                owner.Relocate(data->posX, data->posY, data->posZ, data->orientation);
+                owner.SendHeartBeat(false);
             }
         }
 
-        owner.LoadCreaturesAddon(true);
+        if (owner.GetTemporaryFactionFlags() & TEMPFACTION_RESTORE_REACH_HOME)
+            owner.ClearTemporaryFaction();
+
+        owner.LoadCreatureAddon(true);
         owner.AI()->JustReachedHome();
         return false;
     }

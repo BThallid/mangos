@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,15 +20,15 @@
 #include "ReactorAI.h"
 #include "Errors.h"
 #include "Creature.h"
+#include "Map.h"
 #include "Log.h"
-#include "ObjectAccessor.h"
 
 #define REACTOR_VISIBLE_RANGE (26.46f)
 
 int
 ReactorAI::Permissible(const Creature *creature)
 {
-    if( creature->isCivilian() || creature->IsNeutralToAll() )
+    if( creature->IsCivilian() || creature->IsNeutralToAll() )
         return PERMIT_BASE_REACTIVE;
 
     return PERMIT_BASE_NO;
@@ -68,19 +68,12 @@ void
 ReactorAI::UpdateAI(const uint32 /*time_diff*/)
 {
     // update i_victimGuid if i_creature.getVictim() !=0 and changed
-    if(!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+    if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
         return;
 
     i_victimGuid = m_creature->getVictim()->GetGUID();
 
-    if( m_creature->isAttackReady() )
-    {
-        if( m_creature->IsWithinDistInMap(m_creature->getVictim(), ATTACK_DISTANCE))
-        {
-            m_creature->AttackerStateUpdate(m_creature->getVictim());
-            m_creature->resetAttackTimer();
-        }
-    }
+    DoMeleeAttackIfReady();
 }
 
 void

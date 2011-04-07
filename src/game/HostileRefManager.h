@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #define _HOSTILEREFMANAGER
 
 #include "Common.h"
+#include "ObjectGuid.h"
 #include "Utilities/LinkedReference/RefManager.h"
 
 class Unit;
@@ -31,10 +32,8 @@ struct SpellEntry;
 
 class HostileRefManager : public RefManager<Unit, ThreatManager>
 {
-    private:
-        Unit *iOwner;
     public:
-        explicit HostileRefManager(Unit *pOwner) { iOwner = pOwner; }
+        explicit HostileRefManager(Unit *pOwner);
         ~HostileRefManager();
 
         Unit* getOwner() { return iOwner; }
@@ -64,6 +63,28 @@ class HostileRefManager : public RefManager<Unit, ThreatManager>
 
         // delete one reference, defined by Unit
         void deleteReference(Unit *pCreature);
+
+        // redirection threat data
+        void SetThreatRedirection(ObjectGuid guid, uint32 pct)
+        {
+            m_redirectionTargetGuid = guid;
+            m_redirectionMod = pct/100.0f;
+        }
+
+        void ResetThreatRedirection()
+        {
+            m_redirectionTargetGuid.Clear();
+            m_redirectionMod = 0.0f;
+        }
+
+        float GetThreatRedirectionMod() const { return m_redirectionMod; }
+        Unit*  GetThreatRedirectionTarget() const;
+
+    private:
+        Unit* iOwner;                                       // owner of manager variable, back ref. to it, always exist
+
+        float      m_redirectionMod;
+        ObjectGuid m_redirectionTargetGuid;
 };
 //=================================================
 #endif

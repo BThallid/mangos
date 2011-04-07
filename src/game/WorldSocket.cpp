@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
+ * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -98,6 +98,8 @@ struct ClientPktHeader
 
 WorldSocket::WorldSocket (void) :
 WorldHandler (),
+m_LastPingTime (ACE_Time_Value::zero),
+m_OverSpeedPings (0),
 m_Session (0),
 m_RecvWPct (0),
 m_RecvPct (),
@@ -105,9 +107,7 @@ m_Header (sizeof (ClientPktHeader)),
 m_OutBuffer (0),
 m_OutBufferSize (65536),
 m_OutActive (false),
-m_Seed (static_cast<uint32> (rand32 ())),
-m_OverSpeedPings (0),
-m_LastPingTime (ACE_Time_Value::zero)
+m_Seed (static_cast<uint32> (rand32 ()))
 {
     reference_counting_policy ().value (ACE_Event_Handler::Reference_Counting_Policy::ENABLED);
 
@@ -174,11 +174,11 @@ int WorldSocket::SendPacket (const WorldPacket& pct)
     {
         // Put the packet on the buffer.
         if (m_OutBuffer->copy ((char*) header.header, header.getHeaderLength()) == -1)
-            ACE_ASSERT (false);
+            MANGOS_ASSERT (false);
 
         if (!pct.empty ())
             if (m_OutBuffer->copy ((char*) pct.contents (), pct.size ()) == -1)
-                ACE_ASSERT (false);
+                MANGOS_ASSERT (false);
     }
     else
     {
@@ -244,7 +244,7 @@ int WorldSocket::open (void *a)
     m_Address = remote_addr.get_host_addr ();
 
     // Send startup packet.
-    WorldPacket packet (SMSG_AUTH_CHALLENGE, 24);
+    WorldPacket packet (SMSG_AUTH_CHALLENGE, 40);
     packet << uint32(1);                                    // 1...31
     packet << m_Seed;
 
@@ -445,6 +445,7 @@ int WorldSocket::handle_close (ACE_HANDLE h, ACE_Reactor_Mask)
         m_Session = NULL;
     }
 
+    reactor()->remove_handler(this, ACE_Event_Handler::DONT_CALL | ACE_Event_Handler::ALL_EVENTS_MASK);
     return 0;
 }
 
@@ -466,9 +467,9 @@ int WorldSocket::Update (void)
 
 int WorldSocket::handle_input_header (void)
 {
-    ACE_ASSERT (m_RecvWPct == NULL);
+    MANGOS_ASSERT (m_RecvWPct == NULL);
 
-    ACE_ASSERT (m_Header.length () == sizeof (ClientPktHeader));
+    MANGOS_ASSERT (m_Header.length () == sizeof (ClientPktHeader));
 
     m_Crypt.DecryptRecv ((uint8*) m_Header.rd_ptr (), sizeof (ClientPktHeader));
 
@@ -497,7 +498,7 @@ int WorldSocket::handle_input_header (void)
     }
     else
     {
-        ACE_ASSERT(m_RecvPct.space() == 0);
+        MANGOS_ASSERT(m_RecvPct.space() == 0);
     }
 
     return 0;
@@ -508,9 +509,9 @@ int WorldSocket::handle_input_payload (void)
     // set errno properly here on error !!!
     // now have a header and payload
 
-    ACE_ASSERT (m_RecvPct.space () == 0);
-    ACE_ASSERT (m_Header.space () == 0);
-    ACE_ASSERT (m_RecvWPct != NULL);
+    MANGOS_ASSERT (m_RecvPct.space () == 0);
+    MANGOS_ASSERT (m_Header.space () == 0);
+    MANGOS_ASSERT (m_RecvWPct != NULL);
 
     const int ret = ProcessIncoming (m_RecvWPct);
 
@@ -564,7 +565,7 @@ int WorldSocket::handle_input_missing_data (void)
             if (m_Header.space () > 0)
             {
                 // Couldn't receive the whole header this time.
-                ACE_ASSERT (message_block.length () == 0);
+                MANGOS_ASSERT (message_block.length () == 0);
                 errno = EWOULDBLOCK;
                 return -1;
             }
@@ -572,7 +573,7 @@ int WorldSocket::handle_input_missing_data (void)
             // We just received nice new header
             if (handle_input_header () == -1)
             {
-                ACE_ASSERT ((errno != EWOULDBLOCK) && (errno != EAGAIN));
+                MANGOS_ASSERT ((errno != EWOULDBLOCK) && (errno != EAGAIN));
                 return -1;
             }
         }
@@ -598,7 +599,7 @@ int WorldSocket::handle_input_missing_data (void)
             if (m_RecvPct.space () > 0)
             {
                 // Couldn't receive the whole data this time.
-                ACE_ASSERT (message_block.length () == 0);
+                MANGOS_ASSERT (message_block.length () == 0);
                 errno = EWOULDBLOCK;
                 return -1;
             }
@@ -607,12 +608,12 @@ int WorldSocket::handle_input_missing_data (void)
         //just received fresh new payload
         if (handle_input_payload () == -1)
         {
-            ACE_ASSERT ((errno != EWOULDBLOCK) && (errno != EAGAIN));
+            MANGOS_ASSERT ((errno != EWOULDBLOCK) && (errno != EAGAIN));
             return -1;
         }
     }
 
-    return n == recv_size ? 1 : 2;
+    return size_t(n) == recv_size ? 1 : 2;
 }
 
 int WorldSocket::cancel_wakeup_output (GuardType& g)
@@ -656,7 +657,7 @@ int WorldSocket::schedule_wakeup_output (GuardType& g)
 
 int WorldSocket::ProcessIncoming (WorldPacket* new_pct)
 {
-    ACE_ASSERT (new_pct);
+    MANGOS_ASSERT (new_pct);
 
     // manage memory ;)
     ACE_Auto_Ptr<WorldPacket> aptr (new_pct);
@@ -742,35 +743,30 @@ int WorldSocket::HandleAuthSession (WorldPacket& recvPacket)
 {
     // NOTE: ATM the socket is singlethread, have this in mind ...
     uint8 digest[20];
-    uint32 clientSeed;
-    uint32 unk2, unk3, unk5, unk6, unk7;
-    uint64 unk4;
+    uint32 clientSeed, id, security;
     uint32 ClientBuild;
-    uint32 id, security;
     uint8 expansion = 0;
     LocaleConstant locale;
     std::string account;
     Sha1Hash sha1;
-    BigNumber v, s, g, N;
-    WorldPacket packet, SendAddonPacked;
-
-    BigNumber K;
+    BigNumber v, s, g, N, K;
+    WorldPacket packet;
 
     // Read the content of the packet
     recvPacket >> ClientBuild;
-    recvPacket >> unk2;
+    recvPacket.read_skip<uint32>();
     recvPacket >> account;
-    recvPacket >> unk3;
+    recvPacket.read_skip<uint32>();
     recvPacket >> clientSeed;
-    recvPacket >> unk5 >> unk6 >> unk7;
-    recvPacket >> unk4;
+    recvPacket.read_skip<uint32>();
+    recvPacket.read_skip<uint32>();
+    recvPacket.read_skip<uint32>();
+    recvPacket.read_skip<uint64>();
     recvPacket.read (digest, 20);
 
-    DEBUG_LOG ("WorldSocket::HandleAuthSession: client %u, unk2 %u, account %s, unk3 %u, clientseed %u",
+    DEBUG_LOG ("WorldSocket::HandleAuthSession: client build %u, account %s, clientseed %X",
                 ClientBuild,
-                unk2,
-                account.c_str (),
-                unk3,
+                account.c_str(),
                 clientSeed);
 
     // Check the version of client trying to connect
@@ -934,13 +930,10 @@ int WorldSocket::HandleAuthSession (WorldPacket& recvPacket)
 
     // Update the last_ip in the database
     // No SQL injection, username escaped.
-    LoginDatabase.escape_string (address);
+    static SqlStatementID updAccount;
 
-    LoginDatabase.PExecute ("UPDATE account "
-                            "SET last_ip = '%s' "
-                            "WHERE username = '%s'",
-                            address.c_str (),
-                            safe_account.c_str ());
+    SqlStatement stmt = LoginDatabase.CreateStatement(updAccount, "UPDATE account SET last_ip = ? WHERE username = ?");
+    stmt.PExecute(address.c_str(), account.c_str());
 
     // NOTE ATM the socket is single-threaded, have this in mind ...
     ACE_NEW_RETURN (m_Session, WorldSession (id, this, AccountTypes(security), expansion, mutetime, locale), -1);
