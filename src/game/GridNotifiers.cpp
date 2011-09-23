@@ -47,12 +47,12 @@ VisibleNotifier::Notify()
     {
         for(Transport::PlayerSet::const_iterator itr = transport->GetPassengers().begin();itr!=transport->GetPassengers().end();++itr)
         {
-            if (i_clientGUIDs.find((*itr)->GetGUID()) != i_clientGUIDs.end())
+            if (i_clientGUIDs.find((*itr)->GetObjectGuid()) != i_clientGUIDs.end())
             {
                 // ignore far sight case
                 (*itr)->UpdateVisibilityOf(*itr, &player);
                 player.UpdateVisibilityOf(&player, *itr, i_data, i_visibleNow);
-                i_clientGUIDs.erase((*itr)->GetGUID());
+                i_clientGUIDs.erase((*itr)->GetObjectGuid());
             }
         }
     }
@@ -94,10 +94,6 @@ VisibleNotifier::Notify()
         // target aura duration for caster show only if target exist at caster client
         if ((*vItr) != &player && (*vItr)->isType(TYPEMASK_UNIT))
             player.SendAurasForTarget((Unit*)(*vItr));
-
-        // non finished movements show to player
-        if ((*vItr)->GetTypeId()==TYPEID_UNIT && ((Creature*)(*vItr))->isAlive())
-            ((Creature*)(*vItr))->SendMonsterMoveWithSpeedToCurrentDestination(&player);
     }
 }
 

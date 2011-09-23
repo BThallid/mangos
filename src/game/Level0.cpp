@@ -170,7 +170,7 @@ bool ChatHandler::HandleGMListIngameCommand(char* /*args*/)
     {
         HashMapHolder<Player>::ReadGuard g(HashMapHolder<Player>::GetLock());
         HashMapHolder<Player>::MapType &m = sObjectAccessor.GetPlayers();
-        for(HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end(); ++itr)
+        for (HashMapHolder<Player>::MapType::const_iterator itr = m.begin(); itr != m.end(); ++itr)
         {
             AccountTypes itr_sec = itr->second->GetSession()->GetSecurity();
             if ((itr->second->isGameMaster() || (itr_sec > SEC_PLAYER && itr_sec <= (AccountTypes)sWorld.getConfig(CONFIG_UINT32_GM_LEVEL_IN_GM_LIST))) &&
@@ -248,7 +248,10 @@ bool ChatHandler::HandleAccountPasswordCommand(char* args)
             return false;
     }
 
-    return true;
+    // OK, but avoid normal report for hide passwords, but log use command for anyone
+    LogCommand(".account password *** *** ***");
+    SetSentErrorMessage(true);
+    return false;
 }
 
 bool ChatHandler::HandleAccountLockCommand(char* args)

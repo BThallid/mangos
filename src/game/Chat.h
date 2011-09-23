@@ -62,29 +62,36 @@ enum ChatCommandSearchResult
     CHAT_COMMAND_UNKNOWN_SUBCOMMAND,                        // command found but some level subcommand not find in subcommand list
 };
 
-class ChatHandler
+class MANGOS_DLL_SPEC ChatHandler
 {
     public:
         explicit ChatHandler(WorldSession* session);
         explicit ChatHandler(Player* player);
         ~ChatHandler();
 
-        static void FillMessageData( WorldPacket *data, WorldSession* session, uint8 type, uint32 language, const char *channelName, uint64 target_guid, const char *message, Unit *speaker);
+        static void FillMessageData( WorldPacket *data, WorldSession* session, uint8 type, uint32 language, const char *channelName, ObjectGuid targetGuid, const char *message, Unit *speaker);
 
-        void FillMessageData( WorldPacket *data, uint8 type, uint32 language, uint64 target_guid, const char* message)
+        static void FillMessageData( WorldPacket *data, WorldSession* session, uint8 type, uint32 language, ObjectGuid targetGuid, const char* message)
         {
-            FillMessageData( data, m_session, type, language, NULL, target_guid, message, NULL);
+            FillMessageData( data, session, type, language, NULL, targetGuid, message, NULL);
+        }
+
+        static void FillMessageData( WorldPacket *data, WorldSession* session, uint8 type, uint32 language, const char* message)
+        {
+            FillMessageData( data, session, type, language, NULL, ObjectGuid(), message, NULL);
         }
 
         void FillSystemMessageData( WorldPacket *data, const char* message )
         {
-            FillMessageData( data, CHAT_MSG_SYSTEM, LANG_UNIVERSAL, 0, message );
+            FillMessageData( data, m_session, CHAT_MSG_SYSTEM, LANG_UNIVERSAL, ObjectGuid(), message );
         }
 
         static char* LineFromMessage(char*& pos) { char* start = strtok(pos,"\n"); pos = NULL; return start; }
 
         // function with different implementation for chat/console
         virtual const char *GetMangosString(int32 entry) const;
+        const char *GetOnOffStr(bool value) const;
+
         virtual void SendSysMessage(  const char *str);
 
         void SendSysMessage(          int32     entry);
@@ -117,6 +124,8 @@ class ChatHandler
 
         bool SetDataForCommandInTable(ChatCommand *table, const char* text, uint32 security, std::string const& help);
         void ExecuteCommand(const char* text);
+        void LogCommand(char const* fullcmd);
+
         bool ShowHelpForCommand(ChatCommand *table, const char* cmd);
         bool ShowHelpForSubCommands(ChatCommand *table, char const* cmd);
         ChatCommandSearchResult FindCommand(ChatCommand* table, char const*& text, ChatCommand*& command, ChatCommand** parentCommand = NULL, std::string* cmdNamePtr = NULL, bool allAvailable = false, bool exactlyName = false);
@@ -135,9 +144,20 @@ class ChatHandler
         bool HandleAccountSetGmLevelCommand(char* args);
         bool HandleAccountSetPasswordCommand(char* args);
 
+        bool HandleAHBotItemsAmountCommand(char* args);
+        template <int Q>
+        bool HandleAHBotItemsAmountQualityCommand(char* args);
+        bool HandleAHBotItemsRatioCommand(char* args);
+        template <int H>
+        bool HandleAHBotItemsRatioHouseCommand(char* args);
+        bool HandleAHBotRebuildCommand(char* args);
+        bool HandleAHBotReloadCommand(char* args);
+        bool HandleAHBotStatusCommand(char* args);
+
         bool HandleAuctionAllianceCommand(char* args);
         bool HandleAuctionGoblinCommand(char* args);
         bool HandleAuctionHordeCommand(char* args);
+        bool HandleAuctionItemCommand(char* args);
         bool HandleAuctionCommand(char* args);
 
         bool HandleAchievementCommand(char* args);
@@ -188,7 +208,6 @@ class ChatHandler
         bool HandleDebugSetAuraStateCommand(char* args);
         bool HandleDebugSetItemValueCommand(char* args);
         bool HandleDebugSetValueCommand(char* args);
-        bool HandleDebugSpawnVehicleCommand(char* args);
         bool HandleDebugSpellCheckCommand(char* args);
         bool HandleDebugSpellCoefsCommand(char* args);
         bool HandleDebugSpellModsCommand(char* args);
@@ -322,6 +341,7 @@ class ChatHandler
         bool HandleNpcAddCommand(char* args);
         bool HandleNpcAddMoveCommand(char* args);
         bool HandleNpcAddVendorItemCommand(char* args);
+        bool HandleNpcAIInfoCommand(char* args);
         bool HandleNpcAllowMovementCommand(char* args);
         bool HandleNpcChangeEntryCommand(char* args);
         bool HandleNpcChangeLevelCommand(char* args);
@@ -564,6 +584,7 @@ class ChatHandler
         bool HandleBankCommand(char* args);
         bool HandleChangeWeatherCommand(char* args);
         bool HandleKickPlayerCommand(char* args);
+        bool HandleMailBoxCommand(char* args);
 
         bool HandleTicketCommand(char* args);
         bool HandleDelTicketCommand(char* args);

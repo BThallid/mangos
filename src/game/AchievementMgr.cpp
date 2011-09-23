@@ -24,6 +24,7 @@
 #include "GameEventMgr.h"
 #include "ObjectMgr.h"
 #include "Guild.h"
+#include "GuildMgr.h"
 #include "Database/DatabaseEnv.h"
 #include "World.h"
 #include "SpellMgr.h"
@@ -76,32 +77,27 @@ namespace MaNGOS
 
 bool AchievementCriteriaRequirement::IsValid(AchievementCriteriaEntry const* criteria)
 {
-    if(requirementType >= MAX_ACHIEVEMENT_CRITERIA_REQUIREMENT_TYPE)
-    {
-        sLog.outErrorDb( "Table `achievement_criteria_requirement` for criteria (Entry: %u) have wrong requirement type (%u), ignore.", criteria->ID,requirementType);
-        return false;
-    }
-
     switch(criteria->requiredType)
     {
         case ACHIEVEMENT_CRITERIA_TYPE_KILL_CREATURE:
         case ACHIEVEMENT_CRITERIA_TYPE_WIN_BG:
         case ACHIEVEMENT_CRITERIA_TYPE_FALL_WITHOUT_DYING:
         case ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_QUEST:      // only hardcoded list
+        case ACHIEVEMENT_CRITERIA_TYPE_BE_SPELL_TARGET:
         case ACHIEVEMENT_CRITERIA_TYPE_CAST_SPELL:
         case ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA:
+        case ACHIEVEMENT_CRITERIA_TYPE_USE_ITEM:
         case ACHIEVEMENT_CRITERIA_TYPE_EQUIP_EPIC_ITEM:
         case ACHIEVEMENT_CRITERIA_TYPE_DO_EMOTE:
+        case ACHIEVEMENT_CRITERIA_TYPE_BE_SPELL_TARGET2:
         case ACHIEVEMENT_CRITERIA_TYPE_SPECIAL_PVP_KILL:
+        case ACHIEVEMENT_CRITERIA_TYPE_ON_LOGIN:
         case ACHIEVEMENT_CRITERIA_TYPE_WIN_DUEL:
         case ACHIEVEMENT_CRITERIA_TYPE_LOOT_TYPE:
         case ACHIEVEMENT_CRITERIA_TYPE_CAST_SPELL2:
-        case ACHIEVEMENT_CRITERIA_TYPE_BE_SPELL_TARGET:
-        case ACHIEVEMENT_CRITERIA_TYPE_BE_SPELL_TARGET2:
-        case ACHIEVEMENT_CRITERIA_TYPE_ON_LOGIN:
             break;
         default:
-            sLog.outErrorDb( "Table `achievement_criteria_requirement` have data for not supported criteria type (Entry: %u Type: %u), ignore.", criteria->ID, criteria->requiredType);
+            sLog.outErrorDb( "Table `achievement_criteria_requirement` have not supported data for criteria %u (Not supported as of its criteria type: %u), ignore.", criteria->ID, criteria->requiredType);
             return false;
     }
 
@@ -269,7 +265,6 @@ bool AchievementCriteriaRequirement::IsValid(AchievementCriteriaEntry const* cri
             sLog.outErrorDb( "Table `achievement_criteria_requirement` (Entry: %u Type: %u) have data for not supported data type (%u), ignore.", criteria->ID, criteria->requiredType,requirementType);
             return false;
     }
-    return false;
 }
 
 bool AchievementCriteriaRequirement::Meets(uint32 criteria_id, Player const* source, Unit const* target, uint32 miscvalue1 /*= 0*/) const
@@ -620,7 +615,7 @@ void AchievementMgr::SendAchievementEarned(AchievementEntry const* achievement)
 
     DEBUG_FILTER_LOG(LOG_FILTER_ACHIEVEMENT_UPDATES, "AchievementMgr::SendAchievementEarned(%u)", achievement->ID);
 
-    if(Guild* guild = sObjectMgr.GetGuildById(GetPlayer()->GetGuildId()))
+    if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
     {
         MaNGOS::AchievementChatBuilder say_builder(*GetPlayer(), CHAT_MSG_GUILD_ACHIEVEMENT, LANG_ACHIEVEMENT_EARNED,achievement->ID);
         MaNGOS::LocalizedPacketDo<MaNGOS::AchievementChatBuilder> say_do(say_builder);
@@ -1321,14 +1316,20 @@ void AchievementMgr::UpdateAchievementCriteria(AchievementCriteriaTypes type, ui
                 progressType = PROGRESS_ACCUMULATE;
                 break;
             case ACHIEVEMENT_CRITERIA_TYPE_USE_ITEM:
+            {
                 // AchievementMgr::UpdateAchievementCriteria might also be called on login - skip in this case
-                if(!miscvalue1)
+                if (!miscvalue1)
                     continue;
-                if(achievementCriteria->use_item.itemID != miscvalue1)
+                if (achievementCriteria->use_item.itemID != miscvalue1)
+                    continue;
+                // possible additional requirements
+                AchievementCriteriaRequirementSet const* data = sAchievementMgr.GetCriteriaRequirementSet(achievementCriteria);
+                if (data && !data->Meets(GetPlayer(), unit, miscvalue1))
                     continue;
                 change = 1;
                 progressType = PROGRESS_ACCUMULATE;
                 break;
+            }
             case ACHIEVEMENT_CRITERIA_TYPE_LOOT_ITEM:
                 // You _have_ to loot that item, just owning it when logging in does _not_ count!
                 if(!miscvalue1)
@@ -2092,7 +2093,7 @@ void AchievementMgr::CompletedAchievement(AchievementEntry const* achievement)
     // mail
     if(reward->sender)
     {
-        Item* item = reward->itemId ? Item::CreateItem(reward->itemId,1,GetPlayer ()) : NULL;
+        Item* item = reward->itemId ? Item::CreateItem(reward->itemId, 1, GetPlayer ()) : NULL;
 
         int loc_idx = GetPlayer()->GetSession()->GetSessionDbLocaleIndex();
 
@@ -2214,9 +2215,9 @@ AchievementCriteriaEntryList const& AchievementGlobalMgr::GetAchievementCriteria
 
 void AchievementGlobalMgr::LoadAchievementCriteriaList()
 {
-    if(sAchievementCriteriaStore.GetNumRows()==0)
+    if (sAchievementCriteriaStore.GetNumRows()==0)
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
         bar.step();
 
         sLog.outString();
@@ -2224,7 +2225,7 @@ void AchievementGlobalMgr::LoadAchievementCriteriaList()
         return;
     }
 
-    barGoLink bar( sAchievementCriteriaStore.GetNumRows() );
+    BarGoLink bar(sAchievementCriteriaStore.GetNumRows());
     for (uint32 entryId = 0; entryId < sAchievementCriteriaStore.GetNumRows(); ++entryId)
     {
         bar.step();
@@ -2247,7 +2248,7 @@ void AchievementGlobalMgr::LoadAchievementReferenceList()
 {
     if(sAchievementStore.GetNumRows()==0)
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
         bar.step();
 
         sLog.outString();
@@ -2256,13 +2257,13 @@ void AchievementGlobalMgr::LoadAchievementReferenceList()
     }
 
     uint32 count = 0;
-    barGoLink bar( sAchievementStore.GetNumRows() );
+    BarGoLink bar(sAchievementStore.GetNumRows());
     for (uint32 entryId = 0; entryId < sAchievementStore.GetNumRows(); ++entryId)
     {
         bar.step();
 
         AchievementEntry const* achievement = sAchievementStore.LookupEntry(entryId);
-        if(!achievement || !achievement->refAchievement)
+        if (!achievement || !achievement->refAchievement)
             continue;
 
         m_AchievementListByReferencedId[achievement->refAchievement].push_back(achievement);
@@ -2270,7 +2271,7 @@ void AchievementGlobalMgr::LoadAchievementReferenceList()
     }
 
     sLog.outString();
-    sLog.outString(">> Loaded %u achievement references.",count);
+    sLog.outString(">> Loaded %u achievement references.", count);
 }
 
 void AchievementGlobalMgr::LoadAchievementCriteriaRequirements()
@@ -2279,9 +2280,9 @@ void AchievementGlobalMgr::LoadAchievementCriteriaRequirements()
 
     QueryResult *result = WorldDatabase.Query("SELECT criteria_id, type, value1, value2 FROM achievement_criteria_requirement");
 
-    if(!result)
+    if (!result)
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
         bar.step();
 
         sLog.outString();
@@ -2291,7 +2292,7 @@ void AchievementGlobalMgr::LoadAchievementCriteriaRequirements()
 
     uint32 count = 0;
     uint32 disabled_count = 0;
-    barGoLink bar((int)result->GetRowCount());
+    BarGoLink bar(result->GetRowCount());
     do
     {
         bar.step();
@@ -2408,9 +2409,9 @@ void AchievementGlobalMgr::LoadCompletedAchievements()
 {
     QueryResult *result = CharacterDatabase.Query("SELECT achievement FROM character_achievement GROUP BY achievement");
 
-    if(!result)
+    if (!result)
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
         bar.step();
 
         sLog.outString();
@@ -2418,14 +2419,14 @@ void AchievementGlobalMgr::LoadCompletedAchievements()
         return;
     }
 
-    barGoLink bar((int)result->GetRowCount());
+    BarGoLink bar(result->GetRowCount());
     do
     {
         bar.step();
         Field *fields = result->Fetch();
 
         uint32 achievement_id = fields[0].GetUInt32();
-        if(!sAchievementStore.LookupEntry(achievement_id))
+        if (!sAchievementStore.LookupEntry(achievement_id))
         {
             // we will remove nonexistent achievement for all characters
             sLog.outError("Nonexistent achievement %u data removed from table `character_achievement`.",achievement_id);
@@ -2449,9 +2450,9 @@ void AchievementGlobalMgr::LoadRewards()
     //                                                0      1       2        3        4     5       6        7
     QueryResult *result = WorldDatabase.Query("SELECT entry, gender, title_A, title_H, item, sender, subject, text FROM achievement_reward");
 
-    if(!result)
+    if (!result)
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
 
         bar.step();
 
@@ -2461,7 +2462,7 @@ void AchievementGlobalMgr::LoadRewards()
     }
 
     uint32 count = 0;
-    barGoLink bar((int)result->GetRowCount());
+    BarGoLink bar(result->GetRowCount());
 
     do
     {
@@ -2580,9 +2581,9 @@ void AchievementGlobalMgr::LoadRewardLocales()
 
     QueryResult *result = WorldDatabase.Query("SELECT entry,gender,subject_loc1,text_loc1,subject_loc2,text_loc2,subject_loc3,text_loc3,subject_loc4,text_loc4,subject_loc5,text_loc5,subject_loc6,text_loc6,subject_loc7,text_loc7,subject_loc8,text_loc8 FROM locales_achievement_reward");
 
-    if(!result)
+    if (!result)
     {
-        barGoLink bar(1);
+        BarGoLink bar(1);
 
         bar.step();
 
@@ -2591,7 +2592,7 @@ void AchievementGlobalMgr::LoadRewardLocales()
         return;
     }
 
-    barGoLink bar((int)result->GetRowCount());
+    BarGoLink bar(result->GetRowCount());
 
     do
     {
@@ -2600,7 +2601,7 @@ void AchievementGlobalMgr::LoadRewardLocales()
 
         uint32 entry = fields[0].GetUInt32();
 
-        if(m_achievementRewards.find(entry)==m_achievementRewards.end())
+        if (m_achievementRewards.find(entry)==m_achievementRewards.end())
         {
             sLog.outErrorDb( "Table `locales_achievement_reward` (Entry: %u) has locale strings for nonexistent achievement reward .", entry);
             continue;

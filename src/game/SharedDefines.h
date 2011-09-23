@@ -253,7 +253,7 @@ const uint32 ItemQualityColors[MAX_ITEM_QUALITY] = {
 #define SPELL_ATTR_LEVEL_DAMAGE_CALCULATION       0x00080000            // 19 spelldamage depends on caster level
 #define SPELL_ATTR_STOP_ATTACK_TARGET             0x00100000            // 20 Stop attack after use this spell (and not begin attack if use)
 #define SPELL_ATTR_IMPOSSIBLE_DODGE_PARRY_BLOCK   0x00200000            // 21 Cannot be dodged/parried/blocked
-#define SPELL_ATTR_UNK22                          0x00400000            // 22
+#define SPELL_ATTR_SET_TRACKING_TARGET            0x00400000            // 22 SetTrackingTarget
 #define SPELL_ATTR_UNK23                          0x00800000            // 23 castable while dead?
 #define SPELL_ATTR_CASTABLE_WHILE_MOUNTED         0x01000000            // 24 castable while mounted
 #define SPELL_ATTR_DISABLED_WHILE_ACTIVE          0x02000000            // 25 Activate and start cooldown after aura fade or remove summoned creature or go
@@ -348,7 +348,7 @@ const uint32 ItemQualityColors[MAX_ITEM_QUALITY] = {
 #define SPELL_ATTR_EX3_UNK15                      0x00008000            // 15 Auto Shoot, Shoot, Throw,  - this is autoshot flag
 #define SPELL_ATTR_EX3_UNK16                      0x00010000            // 16 no triggers effects that trigger on casting a spell??
 #define SPELL_ATTR_EX3_NO_INITIAL_AGGRO           0x00020000            // 17 Causes no aggro if not missed
-#define SPELL_ATTR_EX3_UNK18                      0x00040000            // 18
+#define SPELL_ATTR_EX3_CANT_MISS                  0x00040000            // 18 Spell should always hit its target
 #define SPELL_ATTR_EX3_UNK19                      0x00080000            // 19
 #define SPELL_ATTR_EX3_DEATH_PERSISTENT           0x00100000            // 20 Death persistent spells
 #define SPELL_ATTR_EX3_UNK21                      0x00200000            // 21
@@ -933,6 +933,111 @@ enum SpellCastResult
     SPELL_CAST_OK = 255                                     // custom value, don't must be send to client
 };
 
+// Used in addition to SPELL_FAILED_CUSTOM_ERROR
+enum SpellCastResultCustom
+{
+    // Postfix _NONE will not display the text in client
+    SPELL_FAILED_CUSTOM_ERROR_1         = 1,                // "Something bad happened, and we want to display a custom message!"
+    SPELL_FAILED_CUSTOM_ERROR_2         = 2,                // "Alex broke your quest! Thank him later!"
+    SPELL_FAILED_CUSTOM_ERROR_3         = 3,                // "This spell may only be used on Helpless Wintergarde Villagers that have not been rescued."
+    SPELL_FAILED_CUSTOM_ERROR_4         = 4,                // "Requires that you be wearing the Warsong Disguise."
+    SPELL_FAILED_CUSTOM_ERROR_5         = 5,                // "You must be closer to a plague wagon in order to drop off yor 7th Legion Siege Engineer."
+    SPELL_FAILED_CUSTOM_ERROR_6         = 6,                // "You cannot target friendly targets outside your party."
+    SPELL_FAILED_CUSTOM_ERROR_7         = 7,                // "You must target a weakened chill nymph."
+    SPELL_FAILED_CUSTOM_ERROR_8         = 8,                // "The Imbued Scourge Shroud will only work when equipped in the Temple City of En'Kilah"
+    SPELL_FAILED_CUSTOM_ERROR_9         = 9,                // "Requires Corpse Dust"
+    SPELL_FAILED_CUSTOM_ERROR_10        = 10,               // "You cannot summon another gargoyle yet."
+    SPELL_FAILED_CUSTOM_ERROR_11        = 11,               // "Requires Corpse Dust if the target is not dead and humanoid."
+    SPELL_FAILED_CUSTOM_ERROR_12        = 12,               // "Can only be placed near Shatterhorn."
+    SPELL_FAILED_CUSTOM_ERROR_13        = 13,               // "You must first select a Proto-Drake Egg"
+    SPELL_FAILED_CUSTOM_ERROR_14_NONE   = 14,               // "You must be close to a marked tree."
+    SPELL_FAILED_CUSTOM_ERROR_15        = 15,               // "You must target a Fjord Turkey."
+    SPELL_FAILED_CUSTOM_ERROR_16        = 16,               // "You must target a Fjord Hawk."
+    SPELL_FAILED_CUSTOM_ERROR_17        = 17,               // "You are too far away from the bouy."
+    SPELL_FAILED_CUSTOM_ERROR_18        = 18,               // "Must be used near an oil slick."
+    SPELL_FAILED_CUSTOM_ERROR_19        = 19,               // "You must be closer to the bouy!"
+    SPELL_FAILED_CUSTOM_ERROR_20        = 20,               // "You may only call for the aid of a Wyrmrest Vanquisher in Wyrmrest Temple, The Dragon Wastes, Galakrond's Rest or The Wicked Coil."
+    SPELL_FAILED_CUSTOM_ERROR_21        = 21,               // "Can only be used on a Ice Heart Jormungar Spawn."
+    SPELL_FAILED_CUSTOM_ERROR_22        = 22,               // "You must be closer to a sinkhole to use your map."
+    SPELL_FAILED_CUSTOM_ERROR_23        = 23,               // "You may only call down a stampede on Harold Lane."
+    SPELL_FAILED_CUSTOM_ERROR_24        = 24,               // "You may only use the Pouch of Crushed Bloodspore on Gammothra or other magnataur in the Bloodspore Plains and Gammoth."
+    SPELL_FAILED_CUSTOM_ERROR_25        = 25,               // "Requires the magmawyrm ressurection chamber in the back of the Maw of Neltharion."
+    SPELL_FAILED_CUSTOM_ERROR_26        = 26,               // "You may only call down a Wintergarde Gryphon in Wintergarde Keep or the Carrion Fields."
+    SPELL_FAILED_CUSTOM_ERROR_27        = 27,               // "What are you doing? Only aim that thing at Wilhelm!"
+    SPELL_FAILED_CUSTOM_ERROR_28        = 28,               // "Not enough health!"
+    SPELL_FAILED_CUSTOM_ERROR_29        = 29,               // "There are no nearby corpses to use"
+    SPELL_FAILED_CUSTOM_ERROR_30        = 30,               // "You've created enough ghouls. Return to Gothik the Harvester at Death's Breach."
+    SPELL_FAILED_CUSTOM_ERROR_31        = 31,               // "Your companion does not want to come here. Go further from the Sundered Shard."
+    SPELL_FAILED_CUSTOM_ERROR_32        = 32,               // "Must be in Cat Form"
+    SPELL_FAILED_CUSTOM_ERROR_33        = 33,               // "Only Death Knights may enter Ebon Hold."
+    SPELL_FAILED_CUSTOM_ERROR_34        = 34,               // "Must be in Cat Form, Bear Form, or Dire Bear Form."
+    SPELL_FAILED_CUSTOM_ERROR_35        = 35,               // "You must be within range of a Helpless Wintergarde Villager"
+    SPELL_FAILED_CUSTOM_ERROR_36        = 36,               // "You cannot target an elemental or mechanical corpse."
+    SPELL_FAILED_CUSTOM_ERROR_37        = 37,               // "This teleport crystal cannot be used until the teleport crystal in Dalaran has been used at least once."
+    SPELL_FAILED_CUSTOM_ERROR_38        = 38,               // "You are already holding something in your hand. You must throw the creature in your hand before picking up another."
+    SPELL_FAILED_CUSTOM_ERROR_39        = 39,               // "You don't have anything to throw! Find a Vargul and use Gymer Grab to pick one up!"
+    SPELL_FAILED_CUSTOM_ERROR_40        = 40,               // "Bouldercrag's War Horn can only be used within 10 yards of Valduran the Stormborn."
+    SPELL_FAILED_CUSTOM_ERROR_41        = 41,               // "You are not carrying a passenger. There is nobody to drop off."
+    SPELL_FAILED_CUSTOM_ERROR_42        = 42,               // "You cannot build any more siege vehicles."
+    SPELL_FAILED_CUSTOM_ERROR_43        = 43,               // "You are already carrying a captured Argent Crusader. You must return to the Argen Vanguard Infirmary and drop off your passenger before you may pick up another."
+    SPELL_FAILED_CUSTOM_ERROR_44        = 44,               // "You can't do that while rooted."
+    SPELL_FAILED_CUSTOM_ERROR_45        = 45,               // "Requires a nearby target."
+    SPELL_FAILED_CUSTOM_ERROR_46        = 46,               // "Nothing left to discover."
+    SPELL_FAILED_CUSTOM_ERROR_47        = 47,               // "No targets close enough to bluff."
+    SPELL_FAILED_CUSTOM_ERROR_48        = 48,               // "Your Iron Rune Construct is out of range."
+    SPELL_FAILED_CUSTOM_ERROR_49        = 49,               // "Requires Grand Master Engineer."
+    SPELL_FAILED_CUSTOM_ERROR_50        = 50,               // "You can't use that mount."
+    SPELL_FAILED_CUSTOM_ERROR_51        = 51,               // "There is nobody to eject!"
+    SPELL_FAILED_CUSTOM_ERROR_52        = 52,               // "The target must be bound to you."
+    SPELL_FAILED_CUSTOM_ERROR_53        = 53,               // "Target must be undead."
+    SPELL_FAILED_CUSTOM_ERROR_54        = 54,               // "You have no target or your target is too far away."
+    SPELL_FAILED_CUSTOM_ERROR_55        = 55,               // "Missing Reagents: Dark Matter"
+    SPELL_FAILED_CUSTOM_ERROR_56        = 56,               // "You can't use that item."
+    SPELL_FAILED_CUSTOM_ERROR_57        = 57,               // "You can't do that when Cycloned."
+    SPELL_FAILED_CUSTOM_ERROR_58        = 58,               // "Target is already affected by a scroll."
+    SPELL_FAILED_CUSTOM_ERROR_59        = 59,               // "That anti-venom is not strong enough to dispel that poison."
+    SPELL_FAILED_CUSTOM_ERROR_60        = 60,               // "You must have a lance equipped."
+    SPELL_FAILED_CUSTOM_ERROR_61        = 61,               // "You must be near the Maiden of Winter's Breath Lake"
+    SPELL_FAILED_CUSTOM_ERROR_62        = 62,               // "You have learned everything from that book."
+    SPELL_FAILED_CUSTOM_ERROR_63_NONE   = 63,               // "Your pet is dead"
+    SPELL_FAILED_CUSTOM_ERROR_64_NONE   = 64,               // "There are no valid targets within range."
+    SPELL_FAILED_CUSTOM_ERROR_65        = 65,               // "Only GMs may use that. Your account has been reported for investigation."
+    SPELL_FAILED_CUSTOM_ERROR_66        = 66,               // "You must reach level 58 to use this portal."
+    SPELL_FAILED_CUSTOM_ERROR_67        = 67,               // "You already have the maximum amount of honor."
+    SPELL_FAILED_CUSTOM_ERROR_68        = 68,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_69        = 69,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_70        = 70,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_71        = 71,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_72        = 72,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_73        = 73,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_74        = 74,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_75        = 75,               // "You must have a demonic circle active."
+    SPELL_FAILED_CUSTOM_ERROR_76        = 76,               // "You already have maximum rage"
+    SPELL_FAILED_CUSTOM_ERROR_77        = 77,               // "Requires Engineering (350)"
+    SPELL_FAILED_CUSTOM_ERROR_78        = 78,               // "Your soul belongs to the Lich King"
+    SPELL_FAILED_CUSTOM_ERROR_79        = 79,               // "Your attendant already has an Argent Pony"
+    SPELL_FAILED_CUSTOM_ERROR_80        = 80,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_81        = 81,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_82        = 82,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_83        = 83,               // "You must have a Fire Totem active."
+    SPELL_FAILED_CUSTOM_ERROR_84        = 84,               // "You may not bite other vampires."
+    SPELL_FAILED_CUSTOM_ERROR_85        = 85,               // "Your pet is already at your level."
+    SPELL_FAILED_CUSTOM_ERROR_86        = 86,               // "You do not meet the level requirements for this item."
+    SPELL_FAILED_CUSTOM_ERROR_87        = 87,               // "There are too many Mutated Abominations."
+    SPELL_FAILED_CUSTOM_ERROR_88        = 88,               // "The potions have all been depleted by Professor Putricide."
+    SPELL_FAILED_CUSTOM_ERROR_89        = 89,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_90        = 90,               // "Requires level 65"
+    SPELL_FAILED_CUSTOM_ERROR_91        = 91,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_92        = 92,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_93        = 93,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_94        = 94,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_95        = 95,               // ""
+    SPELL_FAILED_CUSTOM_ERROR_96        = 96,               // "You already have the max number of recruits."
+    SPELL_FAILED_CUSTOM_ERROR_97        = 97,               // "You already have the max number of volunteers."
+    SPELL_FAILED_CUSTOM_ERROR_98        = 98,               // "Frostmourne has rendered you unable to ressurect."
+    SPELL_FAILED_CUSTOM_ERROR_99        = 99,               // "You can't mount while affected by that shapeshift."
+};
+
 // Spell aura states
 enum AuraState
 {   // (C) used in caster aura state     (T) used in target aura state
@@ -1000,6 +1105,9 @@ enum Mechanics
     MECHANIC_SAPPED           = 30,
     MECHANIC_ENRAGED          = 31
 };
+
+#define FIRST_MECHANIC          1
+#define MAX_MECHANIC            32
 
 // Used for spell 42292 Immune Movement Impairment and Loss of Control (0x49967da6)
 #define IMMUNE_TO_MOVEMENT_IMPAIRMENT_AND_LOSS_CONTROL_MASK ( \
@@ -1146,6 +1254,7 @@ enum Targets
     TARGET_SELF2                       = 87,
     TARGET_DIRECTLY_FORWARD            = 89,
     TARGET_NONCOMBAT_PET               = 90,
+    TARGET_91                          = 91,
     TARGET_IN_FRONT_OF_CASTER_30       = 104,
 };
 
@@ -1195,6 +1304,7 @@ enum SpellRangeIndex
 {
     SPELL_RANGE_IDX_SELF_ONLY = 1,                          // 0.0
     SPELL_RANGE_IDX_COMBAT    = 2,                          // 5.5 (but dynamic)
+    SPELL_RANGE_IDX_ANYWHERE  = 13,                         // 500000 (anywhere)
 };
 
 enum DamageEffectType
@@ -1255,7 +1365,7 @@ enum GameObjectFlags
     GO_FLAG_LOCKED          = 0x00000002,                   //require key, spell, event, etc to be opened. Makes "Locked" appear in tooltip
     GO_FLAG_INTERACT_COND   = 0x00000004,                   //cannot interact (condition to interact)
     GO_FLAG_TRANSPORT       = 0x00000008,                   //any kind of transport? Object can transport (elevator, boat, car)
-    GO_FLAG_UNK1            = 0x00000010,                   //
+    GO_FLAG_NO_INTERACT     = 0x00000010,                   //players cannot interact with this go (often need to remove flag in event)
     GO_FLAG_NODESPAWN       = 0x00000020,                   //never despawn, typically for doors, they just change state
     GO_FLAG_TRIGGERED       = 0x00000040,                   //typically, summoned objects. Triggered by spell or other events
     GO_FLAG_UNK_8           = 0x00000080,
@@ -1991,7 +2101,7 @@ enum CreatureTypeFlags
     CREATURE_TYPEFLAGS_UNK21            = 0x00100000,       // no idea, but it used by client, may be related to rendering
     CREATURE_TYPEFLAGS_UNK22            = 0x00200000,       // may be has something to do with animation (disable animation?)
     CREATURE_TYPEFLAGS_UNK23            = 0x00400000,       // this one probably controls some creature visual
-    CREATURE_TYPEFLAGS_UNK24            = 0x00800000,       // ? First seen in 3.2.2. Related to banner/backpack of creature/companion, used in CanInteract function by client
+    CREATURE_TYPEFLAGS_SQUIRE           = 0x00800000,       // First seen in 3.2.2. Related to banner/backpack of creature/companion, used in CanInteract function by client
     CREATURE_TYPEFLAGS_UNK25            = 0x01000000,       // pet sounds related?
     CREATURE_TYPEFLAGS_UNK26            = 0x02000000,       // this one probably controls some creature visual
     CREATURE_TYPEFLAGS_UNK27            = 0x04000000,       // creature has no type, or forces creature to be considered as in party, may be related to creature assistance
@@ -2719,6 +2829,16 @@ enum BattleGroundTypeId
 };
 #define MAX_BATTLEGROUND_TYPE_ID 33
 
+enum ArenaType
+{
+    ARENA_TYPE_NONE         = 0,                            // used for mark non-arenas or problematic cases
+    ARENA_TYPE_2v2          = 2,
+    ARENA_TYPE_3v3          = 3,
+    ARENA_TYPE_5v5          = 5
+};
+
+inline bool IsArenaTypeValid(ArenaType type) { return type == ARENA_TYPE_2v2 || type == ARENA_TYPE_3v3 || type == ARENA_TYPE_5v5; }
+
 enum MailResponseType
 {
     MAIL_SEND               = 0,
@@ -2804,6 +2924,12 @@ enum TradeStatus
     TRADE_STATUS_TARGET_LOGOUT  = 20,
     TRADE_STATUS_TRIAL_ACCOUNT  = 21,                       // Trial accounts can not perform that action
     TRADE_STATUS_ONLY_CONJURED  = 22                        // You can only trade conjured items... (cross realm BG related).
+};
+
+enum EncounterCreditType
+{	
+    ENCOUNTER_CREDIT_KILL_CREATURE  = 0,
+    ENCOUNTER_CREDIT_CAST_SPELL     = 1
 };
 
 // we need to stick to 1 version or half of the stuff will work for someone

@@ -32,7 +32,6 @@ struct Modifier
 
 class Unit;
 struct SpellEntry;
-struct SpellModifier;
 struct ProcTriggerSpell;
 
 // forward decl
@@ -69,7 +68,6 @@ class MANGOS_DLL_SPEC SpellAuraHolder
         uint32 GetId() const { return m_spellProto->Id; }
         SpellEntry const* GetSpellProto() const { return m_spellProto; }
 
-        uint64 const& GetCasterGUID() const { return m_casterGuid.GetRawValue(); }
         ObjectGuid const& GetCasterGuid() const { return m_casterGuid; }
         void SetCasterGuid(ObjectGuid guid) { m_casterGuid = guid; }
         ObjectGuid const& GetCastItemGuid() const { return m_castItemGuid; }
@@ -124,12 +122,14 @@ class MANGOS_DLL_SPEC SpellAuraHolder
         uint8 GetAuraLevel() const { return m_auraLevel; }
         void SetAuraLevel(uint8 level) { m_auraLevel = level; }
         uint32 GetAuraCharges() const { return m_procCharges; }
-        void SetAuraCharges(uint32 charges)
+        void SetAuraCharges(uint32 charges, bool update = true)
         {
             if (m_procCharges == charges)
                 return;
             m_procCharges = charges;
-            SendAuraUpdate(false);
+
+            if (update)
+                SendAuraUpdate(false);
         }
         bool DropAuraCharge()                               // return true if last charge dropped
         {
@@ -269,6 +269,7 @@ class MANGOS_DLL_SPEC Aura
         void HandleAuraModRoot(bool Apply, bool Real);
         void HandleAuraModSilence(bool Apply, bool Real);
         void HandleAuraModStat(bool Apply, bool Real);
+        void HandleDetectAmore(bool Apply, bool Real);
         void HandleAuraModIncreaseSpeed(bool Apply, bool Real);
         void HandleAuraModIncreaseMountedSpeed(bool Apply, bool Real);
         void HandleAuraModIncreaseFlightSpeed(bool Apply, bool Real);
@@ -303,6 +304,7 @@ class MANGOS_DLL_SPEC Aura
         void HandleModPowerRegen(bool Apply, bool Real);
         void HandleModPowerRegenPCT(bool Apply, bool Real);
         void HandleChannelDeathItem(bool Apply, bool Real);
+        void HandleDamagePercentTaken(bool Apply, bool Real);
         void HandlePeriodicDamagePCT(bool Apply, bool Real);
         void HandleAuraModAttackPower(bool Apply, bool Real);
         void HandleAuraTransform(bool Apply, bool Real);
@@ -362,6 +364,7 @@ class MANGOS_DLL_SPEC Aura
         void HandlePreventFleeing(bool apply, bool Real);
         void HandleManaShield(bool apply, bool Real);
         void HandleArenaPreparation(bool apply, bool Real);
+        void HandleAuraMirrorImage(bool apply, bool Real);
         void HandleAuraConvertRune(bool apply, bool Real);
         void HandleAuraIncreaseBaseHealthPercent(bool Apply, bool Real);
         void HandleNoReagentUseAura(bool Apply, bool Real);
@@ -370,6 +373,7 @@ class MANGOS_DLL_SPEC Aura
         void HandleAuraModAllCritChance(bool Apply, bool Real);
         void HandleAuraOpenStable(bool apply, bool Real);
         void HandleAuraAddMechanicAbilities(bool apply, bool Real);
+        void HandleAuraStopNaturalManaRegen(bool apply, bool Real);
 
         virtual ~Aura();
 
@@ -382,7 +386,6 @@ class MANGOS_DLL_SPEC Aura
         SpellEntry const* GetSpellProto() const { return GetHolder()->GetSpellProto(); }
         uint32 GetId() const{ return GetHolder()->GetSpellProto()->Id; }
         ObjectGuid const& GetCastItemGuid() const { return GetHolder()->GetCastItemGuid(); }
-        uint64 const& GetCasterGUID() const { return GetHolder()->GetCasterGUID(); }//can't be easy replaced by GetCasterGuid until AuraHolders backporting ig we don't want create additional problems for this.
         ObjectGuid const& GetCasterGuid() const { return GetHolder()->GetCasterGuid(); }
         Unit* GetCaster() const { return GetHolder()->GetCaster(); }
         Unit* GetTarget() const { return GetHolder()->GetTarget(); }
@@ -440,9 +443,9 @@ class MANGOS_DLL_SPEC Aura
         void TriggerSpell();
         void TriggerSpellWithValue();
 
-        uint32 const *getAuraSpellClassMask() const { return  m_spellAuraHolder->GetSpellProto()->GetEffectSpellClassMask(m_effIndex); }
+        ClassFamilyMask const& GetAuraSpellClassMask() const { return  m_spellAuraHolder->GetSpellProto()->GetEffectSpellClassMask(m_effIndex); }
         bool isAffectedOnSpell(SpellEntry const *spell) const;
-        bool CanProcFrom(SpellEntry const *spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const;
+        bool CanProcFrom(SpellEntry const *spell, uint32 procFlag, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const;
 
         //SpellAuraHolder const* GetHolder() const { return m_spellHolder; }
         SpellAuraHolder* GetHolder() { return m_spellAuraHolder; }
@@ -465,7 +468,6 @@ class MANGOS_DLL_SPEC Aura
         void ReapplyAffectedPassiveAuras();
 
         Modifier m_modifier;
-        SpellModifier *m_spellmod;
 
         time_t m_applyTime;
 

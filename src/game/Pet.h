@@ -133,7 +133,7 @@ typedef std::vector<uint32> AutoSpellList;
 
 class Player;
 
-class Pet : public Creature
+class MANGOS_DLL_SPEC Pet : public Creature
 {
     public:
         explicit Pet(PetType type = MAX_PET_TYPE);
@@ -149,7 +149,7 @@ class Pet : public Creature
 
         bool IsPermanentPetFor(Player* owner);              // pet have tab in character windows and set UNIT_FIELD_PETNUMBER
 
-        bool Create (uint32 guidlow, CreatureCreatePos& cPos, uint32 Entry, uint32 pet_number);
+        bool Create (uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, uint32 pet_number);
         bool CreateBaseAtCreature(Creature* creature);
         bool LoadPetFromDB( Player* owner,uint32 petentry = 0,uint32 petnumber = 0, bool current = false );
         void SavePetToDB(PetSaveMode mode);
@@ -157,7 +157,7 @@ class Pet : public Creature
         static void DeleteFromDB(uint32 guidlow, bool separate_transaction = true);
 
         void SetDeathState(DeathState s);                   // overwrite virtual Creature::SetDeathState and Unit::SetDeathState
-        void Update(uint32 update_diff, uint32 diff);                           // overwrite virtual Creature::Update and Unit::Update
+        void Update(uint32 update_diff, uint32 diff) override;  // overwrite virtual Creature::Update and Unit::Update
 
         uint8 GetPetAutoSpellSize() const { return m_autospells.size(); }
         uint32 GetPetAutoSpellOnPos(uint8 pos) const
@@ -168,6 +168,7 @@ class Pet : public Creature
                 return m_autospells[pos];
         }
 
+        void RegenerateAll(uint32 update_diff);             // overwrite Creature::RegenerateAll
         void Regenerate(Powers power);
         void LooseHappiness();
         HappinessState GetHappinessState();

@@ -92,6 +92,13 @@ enum eScriptCommand
                                                             // datalong2=creature entry, datalong3=search radius
     SCRIPT_COMMAND_ATTACK_START             = 26,           // source = Creature (or WorldObject when creature entry are defined), target = Player
                                                             // datalong2 = creature entry (searching for a buddy, closest to source), datalong3 = creature search radius
+    SCRIPT_COMMAND_GO_LOCK_STATE            = 27,           // source or target must be WorldObject
+                                                            // datalong= 1=lock, 2=unlock, 4=set not-interactable, 8=set interactable
+                                                            // datalong2= go entry, datalong3= go search radius
+    SCRIPT_COMMAND_STAND_STATE              = 28,           // source = Unit (or WorldObject when creature entry defined), target = Unit (or none)
+                                                            // datalong = stand state (enum UnitStandStateType)
+                                                            // datalong2 = creature entry (searching for a buddy, closest to source), datalong3 = creature search radius
+                                                            // data_flags = flag_target_as_source           = 0x01
 };
 
 #define MAX_TEXT_ID 4                                       // used for SCRIPT_COMMAND_TALK
@@ -284,6 +291,22 @@ struct ScriptInfo
             uint32 flags;                                   // data_flags
         } attack;
 
+        struct                                              // SCRIPT_COMMAND_GO_LOCK_STATE (27)
+        {
+            uint32 lockState;                               // datalong
+            uint32 goEntry;                                 // datalong2
+            uint32 searchRadius;                            // datalong3
+        } goLockState;
+
+        struct                                              // SCRIPT_COMMAND_STAND_STATE (28)
+        {
+            uint32 stand_state;                             // datalong
+            uint32 creatureEntry;                           // datalong2
+            uint32 searchRadius;                            // datalong3
+            uint32 unused1;                                 // datalong4
+            uint32 flags;                                   // data_flags
+        } standState;
+
         struct
         {
             uint32 data[9];
@@ -360,6 +383,7 @@ class ScriptMgr
 
         const char* GetScriptName(uint32 id) const { return id < m_scriptNames.size() ? m_scriptNames[id].c_str() : ""; }
         uint32 GetScriptId(const char *name) const;
+        uint32 GetScriptIdsCount() const { return m_scriptNames.size(); }
 
         ScriptLoadResult LoadScriptLibrary(const char* libName);
         void UnloadScriptLibrary();
@@ -452,5 +476,7 @@ class ScriptMgr
 MANGOS_DLL_SPEC uint32 GetAreaTriggerScriptId(uint32 triggerId);
 MANGOS_DLL_SPEC uint32 GetEventIdScriptId(uint32 eventId);
 MANGOS_DLL_SPEC uint32 GetScriptId(const char *name);
+MANGOS_DLL_SPEC char const* GetScriptName(uint32 id);
+MANGOS_DLL_SPEC uint32 GetScriptIdsCount();
 
 #endif

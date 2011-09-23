@@ -169,17 +169,6 @@ void WorldSession::HandleMoveWorldportAckOpcode()
         GetPlayer()->m_taxi.ClearTaxiDestinations();
     }
 
-    // resurrect character at enter into instance where his corpse exist after add to map
-    Corpse *corpse = GetPlayer()->GetCorpse();
-    if (corpse && corpse->GetType() != CORPSE_BONES && corpse->GetMapId() == GetPlayer()->GetMapId())
-    {
-        if( mEntry->IsDungeon() )
-        {
-            GetPlayer()->ResurrectPlayer(0.5f);
-            GetPlayer()->SpawnCorpseBones();
-        }
-    }
-
     if (mInstance)
     {
         Difficulty diff = GetPlayer()->GetDifficulty(mEntry->IsRaid());
@@ -296,10 +285,6 @@ void WorldSession::HandleMovementOpcodes( WorldPacket & recv_data )
 
     if (plMover)
         plMover->UpdateFallInformationIfNeed(movementInfo, opcode);
-
-    // after move info set
-    if (opcode == MSG_MOVE_SET_WALK_MODE || opcode == MSG_MOVE_SET_RUN_MODE)
-        mover->UpdateWalkMode(mover, false);
 
     WorldPacket data(opcode, recv_data.size());
     data << mover->GetPackGUID();             // write guid
@@ -430,18 +415,10 @@ void WorldSession::HandleDismissControlledVehicle(WorldPacket &recv_data)
     recv_data >> mi;
 
     ObjectGuid vehicleGUID = _player->GetCharmGuid();
-
-    if (vehicleGUID.IsEmpty())                              // something wrong here...
+    if (!vehicleGUID)                                       // something wrong here...
         return;
 
     _player->m_movementInfo = mi;
-
-    // using charm guid, because we don't have vehicle guid...
-    if(Vehicle *vehicle = _player->GetMap()->GetVehicle(vehicleGUID))
-    {
-        // Aura::HandleAuraControlVehicle will call Player::ExitVehicle
-        vehicle->RemoveSpellsCausingAura(SPELL_AURA_CONTROL_VEHICLE);
-    }
 }
 
 void WorldSession::HandleMountSpecialAnimOpcode(WorldPacket& /*recvdata*/)
@@ -518,12 +495,12 @@ void WorldSession::HandleMoveWaterWalkAck(WorldPacket& recv_data)
 
 void WorldSession::HandleSummonResponseOpcode(WorldPacket& recv_data)
 {
-    if(!_player->isAlive() || _player->isInCombat() )
+    if (!_player->isAlive() || _player->isInCombat())
         return;
 
-    uint64 summoner_guid;
+    ObjectGuid summonerGuid;
     bool agree;
-    recv_data >> summoner_guid;
+    recv_data >> summonerGuid;
     recv_data >> agree;
 
     _player->SummonIfPossible(agree);

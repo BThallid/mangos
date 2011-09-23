@@ -20,8 +20,9 @@
 #include "CreatureAI.h"
 #include "MapManager.h"
 #include "FleeingMovementGenerator.h"
-#include "DestinationHolderImp.h"
 #include "ObjectAccessor.h"
+#include "movement/MoveSplineInit.h"
+#include "movement/MoveSpline.h"
 
 #define MIN_QUIET_DISTANCE 28.0f
 #define MAX_QUIET_DISTANCE 43.0f
@@ -45,8 +46,11 @@ FleeingMovementGenerator<T>::_setTargetLocation(T &owner)
         return;
 
     owner.addUnitState(UNIT_STAT_FLEEING_MOVE);
-    Traveller<T> traveller(owner);
-    i_destinationHolder.SetDestination(traveller, x, y, z);
+
+    Movement::MoveSplineInit init(owner);
+    init.MoveTo(x,y,z);
+    init.SetWalk(false);
+    init.Launch();
 }
 
 template<class T>
@@ -189,9 +193,9 @@ FleeingMovementGenerator<T>::_setMoveData(T &owner)
 {
     float cur_dist_xyz = owner.GetDistance(i_caster_x, i_caster_y, i_caster_z);
 
-    if(i_to_distance_from_caster > 0.0f)
+    if (i_to_distance_from_caster > 0.0f)
     {
-        if((i_last_distance_from_caster > i_to_distance_from_caster && cur_dist_xyz < i_to_distance_from_caster)   ||
+        if ((i_last_distance_from_caster > i_to_distance_from_caster && cur_dist_xyz < i_to_distance_from_caster)   ||
                                                             // if we reach lower distance
            (i_last_distance_from_caster > i_to_distance_from_caster && cur_dist_xyz > i_last_distance_from_caster) ||
                                                             // if we can't be close
@@ -217,12 +221,10 @@ FleeingMovementGenerator<T>::_setMoveData(T &owner)
     float cur_dist;
     float angle_to_caster;
 
-    Unit * fright = ObjectAccessor::GetUnit(owner, i_frightGUID);
-
-    if(fright)
+    if (Unit* fright = owner.GetMap()->GetUnit(i_frightGuid))
     {
         cur_dist = fright->GetDistance(&owner);
-        if(cur_dist < cur_dist_xyz)
+        if (cur_dist < cur_dist_xyz)
         {
             i_caster_x = fright->GetPositionX();
             i_caster_y = fright->GetPositionY();
@@ -286,7 +288,7 @@ FleeingMovementGenerator<T>::Initialize(T &owner)
 
     _Init(owner);
 
-    if(Unit * fright = ObjectAccessor::GetUnit(owner, i_frightGUID))
+    if (Unit * fright = owner.GetMap()->GetUnit(i_frightGuid))
     {
         i_caster_x = fright->GetPositionX();
         i_caster_y = fright->GetPositionY();
@@ -310,7 +312,6 @@ template<>
 void
 FleeingMovementGenerator<Creature>::_Init(Creature &owner)
 {
-    owner.RemoveSplineFlag(SPLINEFLAG_WALKMODE);
     owner.SetTargetGuid(ObjectGuid());
     is_water_ok = owner.CanSwim();
     is_land_ok  = owner.CanWalk();
@@ -333,7 +334,6 @@ void FleeingMovementGenerator<Player>::Finalize(Player &owner)
 template<>
 void FleeingMovementGenerator<Creature>::Finalize(Creature &owner)
 {
-    owner.AddSplineFlag(SPLINEFLAG_WALKMODE);
     owner.clearUnitState(UNIT_STAT_FLEEING|UNIT_STAT_FLEEING_MOVE);
 }
 
@@ -363,28 +363,10 @@ bool FleeingMovementGenerator<T>::Update(T &owner, const uint32 & time_diff)
         return true;
     }
 
-    Traveller<T> traveller(owner);
-
     i_nextCheckTime.Update(time_diff);
-
-    if( (owner.IsStopped() && !i_destinationHolder.HasArrived()) || !i_destinationHolder.HasDestination() )
-    {
+    if (i_nextCheckTime.Passed() && owner.movespline->Finalized())
         _setTargetLocation(owner);
-        return true;
-    }
 
-    if (i_destinationHolder.UpdateTraveller(traveller, time_diff, false))
-    {
-        if (!IsActive(owner))                               // force stop processing (movement can move out active zone with cleanup movegens list)
-            return true;                                    // not expire now, but already lost
-
-        i_destinationHolder.ResetUpdate(50);
-        if(i_nextCheckTime.Passed() && i_destinationHolder.HasArrived())
-        {
-            _setTargetLocation(owner);
-            return true;
-        }
-    }
     return true;
 }
 

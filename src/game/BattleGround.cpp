@@ -64,13 +64,13 @@ namespace MaNGOS
         private:
             void do_helper(WorldPacket& data, char const* text)
             {
-                uint64 target_guid = i_source  ? i_source ->GetGUID() : 0;
+                ObjectGuid targetGuid = i_source ? i_source ->GetObjectGuid() : ObjectGuid();
 
                 data << uint8(i_msgtype);
                 data << uint32(LANG_UNIVERSAL);
-                data << uint64(target_guid);                // there 0 for BG messages
+                data << ObjectGuid(targetGuid);             // there 0 for BG messages
                 data << uint32(0);                          // can be chat msg group or something
-                data << uint64(target_guid);
+                data << ObjectGuid(targetGuid);
                 data << uint32(strlen(text)+1);
                 data << text;
                 data << uint8(i_source ? i_source->chatTag() : uint8(0));
@@ -110,16 +110,16 @@ namespace MaNGOS
             void do_helper(WorldPacket& data, char const* text)
             {
                 //copyied from BuildMonsterChat
-                data << (uint8)CHAT_MSG_MONSTER_YELL;
-                data << (uint32)i_language;
-                data << (uint64)i_source->GetGUID();
-                data << (uint32)0;                                     //2.1.0
-                data << (uint32)(strlen(i_source->GetName())+1);
+                data << uint8(CHAT_MSG_MONSTER_YELL);
+                data << uint32(i_language);
+                data << ObjectGuid(i_source->GetObjectGuid());
+                data << uint32(0);                          // 2.1.0
+                data << uint32(strlen(i_source->GetName())+1);
                 data << i_source->GetName();
-                data << (uint64)0;                            //Unit Target - isn't important for bgs
-                data << (uint32)strlen(text)+1;
+                data << ObjectGuid();                       // Unit Target - isn't important for bgs
+                data << uint32(strlen(text)+1);
                 data << text;
-                data << (uint8)0;                                      // ChatTag - for bgs allways 0?
+                data << uint8(0);                                      // ChatTag - for bgs allways 0?
             }
 
             uint32 i_language;
@@ -143,13 +143,13 @@ namespace MaNGOS
                 char str [2048];
                 snprintf(str,2048,text, arg1str, arg2str );
 
-                uint64 target_guid = i_source  ? i_source ->GetGUID() : 0;
+                ObjectGuid targetGuid = i_source  ? i_source ->GetObjectGuid() : ObjectGuid();
 
                 data << uint8(i_msgtype);
                 data << uint32(LANG_UNIVERSAL);
-                data << uint64(target_guid);                // there 0 for BG messages
+                data << ObjectGuid(targetGuid);             // there 0 for BG messages
                 data << uint32(0);                          // can be chat msg group or something
-                data << uint64(target_guid);
+                data << ObjectGuid(targetGuid);
                 data << uint32(strlen(str)+1);
                 data << str;
                 data << uint8(i_source ? i_source->chatTag() : uint8(0));
@@ -175,18 +175,18 @@ namespace MaNGOS
                 char const* arg2str = i_arg2 ? sObjectMgr.GetMangosString(i_arg2,loc_idx) : "";
 
                 char str [2048];
-                snprintf(str,2048,text, arg1str, arg2str );
+                snprintf(str, 2048, text, arg1str, arg2str);
                 //copyied from BuildMonsterChat
-                data << (uint8)CHAT_MSG_MONSTER_YELL;
-                data << (uint32)i_language;
-                data << (uint64)i_source->GetGUID();
-                data << (uint32)0;                                     //2.1.0
-                data << (uint32)(strlen(i_source->GetName())+1);
+                data << uint8(CHAT_MSG_MONSTER_YELL);
+                data << uint32(i_language);
+                data << ObjectGuid(i_source->GetObjectGuid());
+                data << uint32(0);                          // 2.1.0
+                data << uint32(strlen(i_source->GetName())+1);
                 data << i_source->GetName();
-                data << (uint64)0;                            //Unit Target - isn't important for bgs
-                data << (uint32)strlen(str)+1;
+                data << ObjectGuid();                       // Unit Target - isn't important for bgs
+                data << uint32(strlen(str)+1);
                 data << str;
-                data << (uint8)0;                                      // ChatTag - for bgs allways 0?
+                data << uint8(0);                           // ChatTag - for bgs allways 0?
             }
         private:
 
@@ -215,7 +215,7 @@ BattleGround::BattleGround()
     m_BracketId         = BG_BRACKET_ID_FIRST;
     m_InvitedAlliance   = 0;
     m_InvitedHorde      = 0;
-    m_ArenaType         = 0;
+    m_ArenaType         = ARENA_TYPE_NONE;
     m_IsArena           = false;
     m_Winner            = 2;
     m_StartTime         = 0;
@@ -940,13 +940,11 @@ void BattleGround::SendRewardMarkByMail(Player *plr,uint32 mark, uint32 count)
         // save new item before send
         markItem->SaveToDB();                               // save for prevent lost at next mail load, if send fail then item will deleted
 
+        int loc_idx = plr->GetSession()->GetSessionDbLocaleIndex();
+
         // subject: item name
         std::string subject = markProto->Name1;
-        int loc_idx = plr->GetSession()->GetSessionDbLocaleIndex();
-        if (loc_idx >= 0 )
-            if (ItemLocale const *il = sObjectMgr.GetItemLocale(markProto->ItemId))
-                if (il->Name.size() > size_t(loc_idx) && !il->Name[loc_idx].empty())
-                    subject = il->Name[loc_idx];
+        sObjectMgr.GetItemLocaleStrings(markProto->ItemId, loc_idx, &subject);
 
         // text
         std::string textFormat = plr->GetSession()->GetMangosString(LANG_BG_MARK_BY_MAIL);
@@ -1011,14 +1009,19 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
 
     Player *plr = sObjectMgr.GetPlayer(guid);
 
-    // should remove spirit of redemption
-    if (plr && plr->HasAuraType(SPELL_AURA_SPIRIT_OF_REDEMPTION))
-        plr->RemoveSpellsCausingAura(SPELL_AURA_MOD_SHAPESHIFT);
-
-    if(plr && !plr->isAlive())                              // resurrect on exit
+    if (plr)
     {
-        plr->ResurrectPlayer(1.0f);
-        plr->SpawnCorpseBones();
+        // should remove spirit of redemption
+        if (plr->HasAuraType(SPELL_AURA_SPIRIT_OF_REDEMPTION))
+            plr->RemoveSpellsCausingAura(SPELL_AURA_MOD_SHAPESHIFT);
+
+        plr->RemoveAurasDueToSpell(isArena() ? SPELL_ARENA_DAMPENING : SPELL_BATTLEGROUND_DAMPENING);
+
+        if (!plr->isAlive())                                // resurrect on exit
+        {
+            plr->ResurrectPlayer(1.0f);
+            plr->SpawnCorpseBones();
+        }
     }
 
     RemovePlayer(plr, guid);                                // BG subclass specific code
@@ -1055,7 +1058,7 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
             if (SendPacket)
             {
                 WorldPacket data;
-                sBattleGroundMgr.BuildBattleGroundStatusPacket(&data, this, plr->GetBattleGroundQueueIndex(bgQueueTypeId), STATUS_NONE, 0, 0, 0);
+                sBattleGroundMgr.BuildBattleGroundStatusPacket(&data, this, plr->GetBattleGroundQueueIndex(bgQueueTypeId), STATUS_NONE, 0, 0, ARENA_TYPE_NONE);
                 plr->GetSession()->SendPacket(&data);
             }
 
@@ -1090,7 +1093,7 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
         {
             // a player has left the battleground, so there are free slots -> add to queue
             AddToBGFreeSlotQueue();
-            sBattleGroundMgr.ScheduleQueueUpdate(0, 0, bgQueueTypeId, bgTypeId, GetBracketId());
+            sBattleGroundMgr.ScheduleQueueUpdate(0, ARENA_TYPE_NONE, bgQueueTypeId, bgTypeId, GetBracketId());
         }
 
         // Let others know
@@ -1122,7 +1125,7 @@ void BattleGround::Reset()
     SetStatus(STATUS_WAIT_QUEUE);
     SetStartTime(0);
     SetEndTime(0);
-    SetArenaType(0);
+    SetArenaType(ARENA_TYPE_NONE);
     SetRated(false);
 
     m_Events = 0;
@@ -1160,6 +1163,13 @@ void BattleGround::StartBattleGround()
     // This must be done here, because we need to have already invited some players when first BG::Update() method is executed
     // and it doesn't matter if we call StartBattleGround() more times, because m_BattleGrounds is a map and instance id never changes
     sBattleGroundMgr.AddBattleGround(GetInstanceID(), GetTypeID(), this);
+}
+
+void BattleGround::StartTimedAchievement(AchievementCriteriaTypes type, uint32 entry)
+{
+    for (BattleGroundPlayerMap::const_iterator itr = GetPlayers().begin(); itr != GetPlayers().end(); ++itr)
+        if (Player* pPlayer = GetBgMap()->GetPlayer(itr->first))
+            pPlayer->GetAchievementMgr().StartTimedAchievementCriteria(type, entry);
 }
 
 void BattleGround::AddPlayer(Player *plr)
@@ -1211,17 +1221,16 @@ void BattleGround::AddPlayer(Player *plr)
         plr->UnsummonPetTemporaryIfAny();
 
         if(GetStatus() == STATUS_WAIT_JOIN)                 // not started yet
-        {
             plr->CastSpell(plr, SPELL_ARENA_PREPARATION, true);
 
-            plr->SetHealth(plr->GetMaxHealth());
-            plr->SetPower(POWER_MANA, plr->GetMaxPower(POWER_MANA));
-        }
+        plr->CastSpell(plr, SPELL_ARENA_DAMPENING, true);
     }
     else
     {
         if(GetStatus() == STATUS_WAIT_JOIN)                 // not started yet
             plr->CastSpell(plr, SPELL_PREPARATION, true);   // reduces all mana cost of spells.
+
+        plr->CastSpell(plr, SPELL_BATTLEGROUND_DAMPENING, true);
     }
 
     plr->GetAchievementMgr().ResetAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HEALING_DONE, ACHIEVEMENT_CRITERIA_CONDITION_MAP, GetMapId());
@@ -1592,7 +1601,7 @@ void BattleGround::SpawnBGCreature(ObjectGuid guid, uint32 respawntime)
 
 bool BattleGround::DelObject(uint32 type)
 {
-    if (m_BgObjects[type].IsEmpty())
+    if (!m_BgObjects[type])
         return true;
 
     GameObject *obj = GetBgMap()->GetGameObject(m_BgObjects[type]);

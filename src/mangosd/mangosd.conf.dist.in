@@ -665,6 +665,18 @@ LogColors = ""
 #        Default: 2
 #        Max : 10
 #
+#    TradeSkill.GMIgnore.MaxPrimarySkillsCount
+#        GM level starting from max primary skill count requirement ignored.
+#        Default: 4 (Console as noneone)
+#
+#    TradeSkill.GMIgnore.Level
+#        GM level starting from trade skill level requirement ignored.
+#        Default: 4 (Console as noneone)
+#
+#    TradeSkill.GMIgnore.Skill
+#        GM level starting from trade skill skill requirement ignored.
+#        Default: 4 (Console as noneone)
+#
 #    MinPetitionSigns
 #        Min signatures count to creating guild (0..9).
 #        Default: 9
@@ -729,6 +741,11 @@ LogColors = ""
 #    Motd
 #        Message of the Day. Displayed at worldlogin for every user ('@' for a newline).
 #
+#    Raid.MinLevel
+#        Minimal player level to join raid groups (only affects existing raid groups, party->raid convert ignored)
+#        You can bypass this setting by typing "/script SetAllowLowLevelRaid(true/false)" command in chat
+#        Default: 10
+#
 ###################################################################################################################
 
 GameType = 1
@@ -783,6 +800,9 @@ TimerBar.Breath.Max = 180
 TimerBar.Fire.GMLevel = 4
 TimerBar.Fire.Max = 1
 MaxPrimaryTradeSkill = 2
+TradeSkill.GMIgnore.MaxPrimarySkillsCount = 4
+TradeSkill.GMIgnore.Level = 4
+TradeSkill.GMIgnore.Skill = 4
 MinPetitionSigns = 9
 MaxGroupXPDistance = 74
 MailDeliveryDelay = 3600
@@ -797,6 +817,7 @@ BeepAtStart = 1
 ShowProgressBars = 1
 WaitAtStartupError = 0
 Motd = "Welcome to the Massive Network Game Object Server."
+Raid.MinLevel = 10
 
 ###################################################################################################################
 # PLAYER INTERACTION

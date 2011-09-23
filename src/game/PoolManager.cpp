@@ -269,7 +269,7 @@ void PoolGroup<Creature>::Despawn1Object(MapPersistentState& mapState, uint32 gu
             dataMapState->RemoveCreatureFromGrid(guid, data);
 
             if (Map* dataMap = dataMapState->GetMap())
-                if (Creature* pCreature = dataMap->GetCreature(ObjectGuid(HIGHGUID_UNIT, data->id, guid)))
+                if (Creature* pCreature = dataMap->GetCreature(data->GetObjectGuid(guid)))
                     pCreature->AddObjectToRemoveList();
         }
     }
@@ -485,7 +485,7 @@ void PoolGroup<Creature>::ReSpawn1Object(MapPersistentState& mapState, PoolObjec
         // for non-instanceable maps pool spawn can be at different map from provided mapState
         if (MapPersistentState* dataMapState = mapState.GetMapId() == data->mapid ? &mapState : sMapPersistentStateMgr.GetPersistentState(data->mapid, 0))
             if (Map* dataMap = dataMapState->GetMap())
-                if (Creature* pCreature = dataMap->GetCreature(ObjectGuid(HIGHGUID_UNIT, data->id, obj->guid)))
+                if (Creature* pCreature = dataMap->GetCreature(data->GetObjectGuid(obj->guid)))
                     pCreature->GetMap()->Add(pCreature);
     }
 }
@@ -595,7 +595,7 @@ void PoolManager::LoadFromDB()
 
     uint32 count = 0;
 
-    barGoLink bar((int)result->GetRowCount());
+    BarGoLink bar(result->GetRowCount());
     do
     {
         ++count;
@@ -628,7 +628,7 @@ void PoolManager::LoadFromDB()
     count = 0;
     if (!result)
     {
-        barGoLink bar2(1);
+        BarGoLink bar2(1);
         bar2.step();
 
         sLog.outString();
@@ -637,7 +637,7 @@ void PoolManager::LoadFromDB()
     else
     {
 
-        barGoLink bar2((int)result->GetRowCount());
+        BarGoLink bar2(result->GetRowCount());
         do
         {
             Field *fields = result->Fetch();
@@ -690,7 +690,7 @@ void PoolManager::LoadFromDB()
     count = 0;
     if (!result)
     {
-        barGoLink bar2(1);
+        BarGoLink bar2(1);
         bar2.step();
 
         sLog.outString();
@@ -698,7 +698,7 @@ void PoolManager::LoadFromDB()
     }
     else
     {
-        barGoLink bar2((int)result->GetRowCount());
+        BarGoLink bar2(result->GetRowCount());
         do
         {
             Field *fields = result->Fetch();
@@ -767,7 +767,7 @@ void PoolManager::LoadFromDB()
     count = 0;
     if (!result)
     {
-        barGoLink bar2(1);
+        BarGoLink bar2(1);
         bar2.step();
 
         sLog.outString();
@@ -776,7 +776,7 @@ void PoolManager::LoadFromDB()
     else
     {
 
-        barGoLink bar2((int)result->GetRowCount());
+        BarGoLink bar2(result->GetRowCount());
         do
         {
             Field *fields = result->Fetch();
@@ -838,7 +838,7 @@ void PoolManager::LoadFromDB()
     count = 0;
     if (!result)
     {
-        barGoLink bar2(1);
+        BarGoLink bar2(1);
         bar2.step();
 
         sLog.outString();
@@ -847,7 +847,7 @@ void PoolManager::LoadFromDB()
     else
     {
 
-        barGoLink bar2((int)result->GetRowCount());
+        BarGoLink bar2(result->GetRowCount());
         do
         {
             Field *fields = result->Fetch();
@@ -922,7 +922,7 @@ void PoolManager::LoadFromDB()
     count = 0;
     if( !result )
     {
-        barGoLink bar2(1);
+        BarGoLink bar2(1);
         bar2.step();
 
         sLog.outString();
@@ -931,7 +931,7 @@ void PoolManager::LoadFromDB()
     else
     {
 
-        barGoLink bar2( (int)result->GetRowCount() );
+        BarGoLink bar2(result->GetRowCount());
         do
         {
             Field *fields = result->Fetch();

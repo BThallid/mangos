@@ -233,7 +233,7 @@ void ReputationMgr::SendInitialReputations()
 
     RepListID a = 0;
 
-    for (FactionStateList::const_iterator itr = m_factions.begin(); itr != m_factions.end(); ++itr)
+    for (FactionStateList::iterator itr = m_factions.begin(); itr != m_factions.end(); ++itr)
     {
         int32 standing = itr->second.Standing;
         if (m_player->IsTraitor())
@@ -249,6 +249,8 @@ void ReputationMgr::SendInitialReputations()
         // fill in encountered data
         data << uint8  (itr->second.Flags);
         data << uint32 (standing);
+
+        itr->second.needSend = false;
 
         ++a;
     }
