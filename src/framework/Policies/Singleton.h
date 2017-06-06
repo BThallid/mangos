@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,12 +31,12 @@ namespace MaNGOS
 {
     template
     <
-    typename T,
-    class ThreadingModel = MaNGOS::SingleThreaded<T>,
-    class CreatePolicy = MaNGOS::OperatorNew<T>,
-    class LifeTimePolicy = MaNGOS::ObjectLifeTime<T>
-    >
-    class MANGOS_DLL_DECL Singleton
+        typename T,
+        class ThreadingModel = MaNGOS::SingleThreaded<T>,
+        class CreatePolicy = MaNGOS::OperatorNew<T>,
+        class LifeTimePolicy = MaNGOS::ObjectLifeTime<T>
+        >
+    class Singleton
     {
         public:
 
@@ -59,9 +59,59 @@ namespace MaNGOS
 
             // data structure
             typedef typename ThreadingModel::Lock Guard;
-            static T *si_instance;
+            static T* si_instance;
             static bool si_destroyed;
     };
+
+    template<typename T, class ThreadingModel, class CreatePolicy, class LifeTimePolicy>
+    T* Singleton<T, ThreadingModel, CreatePolicy, LifeTimePolicy>::si_instance = nullptr;
+
+    template<typename T, class ThreadingModel, class CreatePolicy, class LifeTimePolicy>
+    bool Singleton<T, ThreadingModel, CreatePolicy, LifeTimePolicy>::si_destroyed = false;
+
+    template<typename T, class ThreadingModel, class CreatePolicy, class LifeTimePolicy>
+    T& MaNGOS::Singleton<T, ThreadingModel, CreatePolicy, LifeTimePolicy>::Instance()
+    {
+        if (!si_instance)
+        {
+            // double-checked Locking pattern
+            Guard();
+
+            if (!si_instance)
+            {
+                if (si_destroyed)
+                {
+                    si_destroyed = false;
+                    LifeTimePolicy::OnDeadReference();
+                }
+
+                si_instance = CreatePolicy::Create();
+                LifeTimePolicy::ScheduleCall(&DestroySingleton);
+            }
+        }
+
+        return *si_instance;
+    }
+
+    template<typename T, class ThreadingModel, class CreatePolicy, class LifeTimePolicy>
+    void MaNGOS::Singleton<T, ThreadingModel, CreatePolicy, LifeTimePolicy>::DestroySingleton()
+    {
+        CreatePolicy::Destroy(si_instance);
+        si_instance = nullptr;
+        si_destroyed = true;
+    }
 }
+
+#define INSTANTIATE_SINGLETON_1(TYPE) \
+    template class MaNGOS::Singleton<TYPE, MaNGOS::SingleThreaded<TYPE>, MaNGOS::OperatorNew<TYPE>, MaNGOS::ObjectLifeTime<TYPE> >;
+
+#define INSTANTIATE_SINGLETON_2(TYPE, THREADINGMODEL) \
+    template class MaNGOS::Singleton<TYPE, THREADINGMODEL, MaNGOS::OperatorNew<TYPE>, MaNGOS::ObjectLifeTime<TYPE> >;
+
+#define INSTANTIATE_SINGLETON_3(TYPE, THREADINGMODEL, CREATIONPOLICY ) \
+    template class MaNGOS::Singleton<TYPE, THREADINGMODEL, CREATIONPOLICY, MaNGOS::ObjectLifeTime<TYPE> >;
+
+#define INSTANTIATE_SINGLETON_4(TYPE, THREADINGMODEL, CREATIONPOLICY, OBJECTLIFETIME) \
+    template class MaNGOS::Singleton<TYPE, THREADINGMODEL, CREATIONPOLICY, OBJECTLIFETIME >;
 
 #endif

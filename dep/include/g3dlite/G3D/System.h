@@ -24,6 +24,10 @@
 #   include <CoreServices/CoreServices.h>
 #endif
 
+#ifdef __FreeBSD__
+#   include <sys/time.h>
+#endif
+
 namespace G3D {
 
 /**
@@ -375,10 +379,12 @@ public:
      // count now contains the cycle count for the intervening operation.
      </PRE>
      */
-    /* static void beginCycleCount(uint64& cycleCount);
+#if SOMEONE_MADE_THIS_USEFUL /* G3DFIX: Not required and not portable to Win64 */
+    static void beginCycleCount(uint64& cycleCount);
     static void endCycleCount(uint64& cycleCount);
 
-    static uint64 getCycleCount(); */
+    static uint64 getCycleCount();
+#endif /* G3DFIX: Not required and not portable to Win64 */
 
     inline static void setOutOfMemoryCallback(OutOfMemoryCallback c) {
         instance().m_outOfMemoryCallback = c;
@@ -438,7 +444,8 @@ public:
 
 };
 
-/* don't need that for MaNGOS, not portable to Win64...
+#if SOMEONE_MADE_THIS_USEFUL /* G3DFIX: Not required and not portable to Win64 */
+
 #ifdef _MSC_VER
     inline uint64 System::getCycleCount() {
         uint32 timehi, timelo;
@@ -500,7 +507,8 @@ inline void System::endCycleCount(uint64& cycleCount) {
                   (double) UnsignedWideToUInt64(diffNS) * instance().m_secondsPerNS);
 #endif
 }
- */
+
+#endif /* G3DFIX: Not required and not portable to Win64 */
 
 } // namespace
 

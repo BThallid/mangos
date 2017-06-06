@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,34 +19,32 @@
 #ifndef __UPDATEMASK_H
 #define __UPDATEMASK_H
 
-#include "UpdateFields.h"
 #include "Errors.h"
 
 class UpdateMask
 {
     public:
-        UpdateMask( ) : mCount( 0 ), mBlocks( 0 ), mUpdateMask( 0 ) { }
-        UpdateMask( const UpdateMask& mask ) : mUpdateMask( 0 ) { *this = mask; }
+        UpdateMask() : mCount(0), mBlocks(0), mUpdateMask(nullptr) { }
+        UpdateMask(const UpdateMask& mask) : mUpdateMask(nullptr) { *this = mask; }
 
-        ~UpdateMask( )
+        ~UpdateMask()
         {
-            if(mUpdateMask)
-                delete [] mUpdateMask;
+            delete[] mUpdateMask;
         }
 
-        void SetBit (uint32 index)
+        void SetBit(uint32 index)
         {
-            ( (uint8 *)mUpdateMask )[ index >> 3 ] |= 1 << ( index & 0x7 );
+            ((uint8*)mUpdateMask)[ index >> 3 ] |= 1 << (index & 0x7);
         }
 
-        void UnsetBit (uint32 index)
+        void UnsetBit(uint32 index)
         {
-            ( (uint8 *)mUpdateMask )[ index >> 3 ] &= (0xff ^ (1 <<  ( index & 0x7 ) ) );
+            ((uint8*)mUpdateMask)[ index >> 3 ] &= (0xff ^ (1 << (index & 0x7)));
         }
 
-        bool GetBit (uint32 index) const
+        bool GetBit(uint32 index) const
         {
-            return ( ( (uint8 *)mUpdateMask)[ index >> 3 ] & ( 1 << ( index & 0x7 ) )) != 0;
+            return (((uint8*)mUpdateMask)[ index >> 3 ] & (1 << (index & 0x7))) != 0;
         }
 
         uint32 GetBlockCount() const { return mBlocks; }
@@ -54,10 +52,9 @@ class UpdateMask
         uint32 GetCount() const { return mCount; }
         uint8* GetMask() { return (uint8*)mUpdateMask; }
 
-        void SetCount (uint32 valuesCount)
+        void SetCount(uint32 valuesCount)
         {
-            if(mUpdateMask)
-                delete [] mUpdateMask;
+            delete[] mUpdateMask;
 
             mCount = valuesCount;
             mBlocks = (valuesCount + 31) / 32;
@@ -72,7 +69,7 @@ class UpdateMask
                 memset(mUpdateMask, 0, mBlocks << 2);
         }
 
-        UpdateMask& operator = ( const UpdateMask& mask )
+        UpdateMask& operator = (const UpdateMask& mask)
         {
             SetCount(mask.mCount);
             memcpy(mUpdateMask, mask.mUpdateMask, mBlocks << 2);
@@ -80,21 +77,21 @@ class UpdateMask
             return *this;
         }
 
-        void operator &= ( const UpdateMask& mask )
+        void operator &= (const UpdateMask& mask)
         {
             MANGOS_ASSERT(mask.mCount <= mCount);
             for (uint32 i = 0; i < mBlocks; ++i)
                 mUpdateMask[i] &= mask.mUpdateMask[i];
         }
 
-        void operator |= ( const UpdateMask& mask )
+        void operator |= (const UpdateMask& mask)
         {
             MANGOS_ASSERT(mask.mCount <= mCount);
             for (uint32 i = 0; i < mBlocks; ++i)
                 mUpdateMask[i] |= mask.mUpdateMask[i];
         }
 
-        UpdateMask operator & ( const UpdateMask& mask ) const
+        UpdateMask operator & (const UpdateMask& mask) const
         {
             MANGOS_ASSERT(mask.mCount <= mCount);
 
@@ -105,7 +102,7 @@ class UpdateMask
             return newmask;
         }
 
-        UpdateMask operator | ( const UpdateMask& mask ) const
+        UpdateMask operator | (const UpdateMask& mask) const
         {
             MANGOS_ASSERT(mask.mCount <= mCount);
 
@@ -119,6 +116,6 @@ class UpdateMask
     private:
         uint32 mCount;
         uint32 mBlocks;
-        uint32 *mUpdateMask;
+        uint32* mUpdateMask;
 };
 #endif

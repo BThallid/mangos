@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,24 +20,22 @@
 
 #include "Common.h"
 #include "Channel.h"
-#include "Policies/Singleton.h"
 
 #include <map>
-#include <string>
 
 class ChannelMgr
 {
     public:
-        typedef std::map<std::wstring,Channel*> ChannelMap;
+        typedef std::map<std::wstring, Channel*> ChannelMap;
         ChannelMgr() {}
         ~ChannelMgr();
 
-        Channel *GetJoinChannel(std::string name, uint32 channel_id);
-        Channel *GetChannel(std::string name, Player *p, bool pkt = true);
-        void LeftChannel(std::string name);
+        Channel* GetJoinChannel(const std::string& name, uint32 channel_id);
+        Channel* GetChannel(const std::string& name, Player* p, bool pkt = true);
+        void LeftChannel(const std::string& name);
     private:
         ChannelMap channels;
-        void MakeNotOnPacket(WorldPacket *data, std::string name);
+        void MakeNotOnPacket(WorldPacket& data, const std::string& name) const;
 };
 
 class AllianceChannelMgr : public ChannelMgr {};

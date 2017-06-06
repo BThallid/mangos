@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #ifndef MANGOS_SQLSTORAGES_H
 #define MANGOS_SQLSTORAGES_H
 
-#include "Common.h"
 #include "Database/SQLStorage.h"
 
 extern SQLStorage sCreatureStorage;
@@ -27,10 +26,21 @@ extern SQLStorage sCreatureDataAddonStorage;
 extern SQLStorage sCreatureInfoAddonStorage;
 extern SQLStorage sCreatureModelStorage;
 extern SQLStorage sEquipmentStorage;
-extern SQLStorage sGOStorage;
 extern SQLStorage sPageTextStore;
 extern SQLStorage sItemStorage;
 extern SQLStorage sInstanceTemplate;
 extern SQLStorage sWorldTemplate;
+extern SQLStorage sConditionStorage;
+extern SQLStorage sSpellTemplate;
+extern SQLStorage sDungeonEncounterStore;
+
+extern SQLHashStorage sGOStorage;
+extern SQLHashStorage sGameObjectDataAddonStorage;
+extern SQLHashStorage sCreatureTemplateSpellsStorage;
+
+extern SQLMultiStorage sVehicleAccessoryStorage;
+extern SQLMultiStorage sSpellScriptTargetStorage;
+
+SQLStorage                 const* GetSpellStore();
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,24 +27,22 @@
 
 #include "MovementGenerator.h"
 #include "WaypointManager.h"
+#include "DBCStructure.h"
 
-#include "Player.h"
-
-#include <vector>
 #include <set>
 
 #define FLIGHT_TRAVEL_UPDATE  100
-#define STOP_TIME_FOR_PLAYER  3 * MINUTE * IN_MILLISECONDS  // 3 Minutes
+#define STOP_TIME_FOR_PLAYER  (3 * MINUTE * IN_MILLISECONDS)// 3 Minutes
 
 template<class T, class P>
-class MANGOS_DLL_SPEC PathMovementBase
+class PathMovementBase
 {
     public:
         PathMovementBase() : i_currentNode(0) {}
         virtual ~PathMovementBase() {};
 
         // template pattern, not defined .. override required
-        void LoadPath(T &);
+        void LoadPath(T&);
         uint32 GetCurrentNode() const { return i_currentNode; }
 
     protected:
@@ -58,62 +56,58 @@ class MANGOS_DLL_SPEC PathMovementBase
  */
 
 template<class T>
-class MANGOS_DLL_SPEC WaypointMovementGenerator;
+class WaypointMovementGenerator;
 
 template<>
-class MANGOS_DLL_SPEC WaypointMovementGenerator<Creature>
-: public MovementGeneratorMedium< Creature, WaypointMovementGenerator<Creature> >,
-public PathMovementBase<Creature, WaypointPath const*>
+class WaypointMovementGenerator<Creature>
+    : public MovementGeneratorMedium< Creature, WaypointMovementGenerator<Creature> >,
+      public PathMovementBase<Creature, WaypointPath const*>
 {
     public:
-        WaypointMovementGenerator(Creature &) : i_nextMoveTime(0), m_isArrivalDone(false) {}
-        ~WaypointMovementGenerator() { i_path = NULL; }
-        void Initialize(Creature &u);
-        void Interrupt(Creature &);
-        void Finalize(Creature &);
-        void Reset(Creature &u);
-        bool Update(Creature &u, const uint32 &diff);
-
-        void MovementInform(Creature &);
+        WaypointMovementGenerator(Creature&) : i_nextMoveTime(0), m_isArrivalDone(false), m_lastReachedWaypoint(0), m_pathId(0), m_PathOrigin()
+        {}
+        ~WaypointMovementGenerator() { i_path = nullptr; }
+        void Initialize(Creature& u);
+        void Interrupt(Creature&);
+        void Finalize(Creature&);
+        void Reset(Creature& u);
+        bool Update(Creature& u, const uint32& diff);
+        void InitializeWaypointPath(Creature& u, int32 pathId, WaypointPathOrigin wpSource, uint32 initialDelay, uint32 overwriteEntry);
 
         MovementGeneratorType GetMovementGeneratorType() const { return WAYPOINT_MOTION_TYPE; }
 
-        // now path movement implmementation
-        void LoadPath(Creature &c);
+        bool GetResetPosition(Creature&, float& /*x*/, float& /*y*/, float& /*z*/, float& /*o*/) const;
+        uint32 getLastReachedWaypoint() const { return m_lastReachedWaypoint; }
+        void GetPathInformation(uint32& pathId, WaypointPathOrigin& wpOrigin) const { pathId = m_pathId; wpOrigin = m_PathOrigin; }
+        void GetPathInformation(std::ostringstream& oss) const;
 
-        bool GetResetPosition(Creature&, float& x, float& y, float& z);
+        void AddToWaypointPauseTime(int32 waitTimeDiff);
+        bool SetNextWaypoint(uint32 pointId);
 
     private:
+        void LoadPath(Creature& c, int32 id, WaypointPathOrigin wpOrigin, uint32 overwriteEntry);
 
-        void Stop(int32 time) { i_nextMoveTime.Reset(time);}
-
-        bool Stopped() { return !i_nextMoveTime.Passed();}
-
-        bool CanMove(int32 diff)
-        {
-            i_nextMoveTime.Update(diff);
-            return i_nextMoveTime.Passed();
-        }
+        void Stop(int32 time) { i_nextMoveTime.Reset(time); }
+        bool Stopped(Creature& u);
+        bool CanMove(int32 diff, Creature& u);
 
         void OnArrived(Creature&);
         void StartMove(Creature&);
 
-        void StartMoveNow(Creature& creature)
-        {
-            i_nextMoveTime.Reset(0);
-            StartMove(creature);
-        }
-
         ShortTimeTracker i_nextMoveTime;
         bool m_isArrivalDone;
+        uint32 m_lastReachedWaypoint;
+
+        uint32 m_pathId;
+        WaypointPathOrigin m_PathOrigin;
 };
 
 /** FlightPathMovementGenerator generates movement of the player for the paths
  * and hence generates ground and activities for the player.
  */
-class MANGOS_DLL_SPEC FlightPathMovementGenerator
-: public MovementGeneratorMedium< Player, FlightPathMovementGenerator >,
-public PathMovementBase<Player,TaxiPathNodeList const*>
+class FlightPathMovementGenerator
+    : public MovementGeneratorMedium< Player, FlightPathMovementGenerator >,
+      public PathMovementBase<Player, TaxiPathNodeList const*>
 {
     public:
         explicit FlightPathMovementGenerator(TaxiPathNodeList const& pathnodes, uint32 startNode = 0)
@@ -121,12 +115,12 @@ public PathMovementBase<Player,TaxiPathNodeList const*>
             i_path = &pathnodes;
             i_currentNode = startNode;
         }
-        void Initialize(Player &);
-        void Finalize(Player &);
-        void Interrupt(Player &);
-        void Reset(Player &);
-        bool Update(Player &, const uint32 &);
-        MovementGeneratorType GetMovementGeneratorType() const { return FLIGHT_MOTION_TYPE; }
+        void Initialize(Player&);
+        void Finalize(Player&);
+        void Interrupt(Player&);
+        void Reset(Player&);
+        bool Update(Player&, const uint32&);
+        MovementGeneratorType GetMovementGeneratorType() const override { return FLIGHT_MOTION_TYPE; }
 
         TaxiPathNodeList const& GetPath() { return *i_path; }
         uint32 GetPathAtMapEnd() const;
@@ -134,6 +128,7 @@ public PathMovementBase<Player,TaxiPathNodeList const*>
         void SetCurrentNodeAfterTeleport();
         void SkipCurrentNode() { ++i_currentNode; }
         void DoEventIfAny(Player& player, TaxiPathNodeEntry const& node, bool departure);
-        bool GetResetPosition(Player&, float& x, float& y, float& z);
+        bool GetResetPosition(Player&, float& /*x*/, float& /*y*/, float& /*z*/, float& /*o*/) const;
 };
+
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,19 +25,20 @@
 
 #include "Common.h"
 #include "Timer.h"
-#include "Policies/Singleton.h"
 #include "SharedDefines.h"
 
-#include <map>
 #include <set>
 #include <list>
+#include <deque>
+#include <mutex>
+#include <functional>
+#include <vector>
 
 class Object;
+class ObjectGuid;
 class WorldPacket;
 class WorldSession;
 class Player;
-class Weather;
-class SqlResultQueue;
 class QueryResult;
 class WorldSocket;
 
@@ -72,12 +73,12 @@ enum ShutdownExitCode
 enum WorldTimers
 {
     WUPDATE_AUCTIONS    = 0,
-    WUPDATE_WEATHERS    = 1,
-    WUPDATE_UPTIME      = 2,
-    WUPDATE_CORPSES     = 3,
-    WUPDATE_EVENTS      = 4,
-    WUPDATE_DELETECHARS = 5,
-    WUPDATE_AHBOT       = 6,
+    WUPDATE_UPTIME      = 1,
+    WUPDATE_CORPSES     = 2,
+    WUPDATE_EVENTS      = 3,
+    WUPDATE_DELETECHARS = 4,
+    WUPDATE_AHBOT       = 5,
+    WUPDATE_GROUPS      = 6,
     WUPDATE_COUNT       = 7
 };
 
@@ -116,6 +117,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_INSTANCE_UNLOAD_DELAY,
     CONFIG_UINT32_MAX_SPELL_CASTS_IN_CHAIN,
     CONFIG_UINT32_BIRTHDAY_TIME,
+    CONFIG_UINT32_RABBIT_DAY,
     CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL,
     CONFIG_UINT32_TRADE_SKILL_GMIGNORE_MAX_PRIMARY_COUNT,
     CONFIG_UINT32_TRADE_SKILL_GMIGNORE_LEVEL,
@@ -129,6 +131,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_GM_LEVEL_IN_GM_LIST,
     CONFIG_UINT32_GM_LEVEL_IN_WHO_LIST,
     CONFIG_UINT32_START_GM_LEVEL,
+    CONFIG_UINT32_GM_INVISIBLE_AURA,
     CONFIG_UINT32_GROUP_VISIBILITY,
     CONFIG_UINT32_MAIL_DELIVERY_DELAY,
     CONFIG_UINT32_MASS_MAILER_SEND_PER_TICK,
@@ -172,6 +175,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_ARENA_AUTO_DISTRIBUTE_INTERVAL_DAYS,
     CONFIG_UINT32_ARENA_SEASON_ID,
     CONFIG_UINT32_ARENA_SEASON_PREVIOUS_ID,
+    CONFIG_UINT32_GROUP_OFFLINE_LEADER_DELAY,
     CONFIG_UINT32_CLIENTCACHE_VERSION,
     CONFIG_UINT32_GUILD_EVENT_LOG_COUNT,
     CONFIG_UINT32_GUILD_BANK_EVENT_LOG_COUNT,
@@ -188,6 +192,8 @@ enum eConfigUInt32Values
     CONFIG_UINT32_GUID_RESERVE_SIZE_CREATURE,
     CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT,
     CONFIG_UINT32_MIN_LEVEL_FOR_RAID,
+    CONFIG_UINT32_CREATURE_RESPAWN_AGGRO_DELAY,
+    CONFIG_UINT32_MAX_WHOLIST_RETURNS,
     CONFIG_UINT32_VALUE_COUNT
 };
 
@@ -222,7 +228,9 @@ enum eConfigFloatValues
     CONFIG_FLOAT_RATE_DROP_ITEM_LEGENDARY,
     CONFIG_FLOAT_RATE_DROP_ITEM_ARTIFACT,
     CONFIG_FLOAT_RATE_DROP_ITEM_REFERENCED,
+    CONFIG_FLOAT_RATE_DROP_ITEM_QUEST,
     CONFIG_FLOAT_RATE_DROP_MONEY,
+    CONFIG_FLOAT_RATE_PET_XP_KILL,
     CONFIG_FLOAT_RATE_XP_KILL,
     CONFIG_FLOAT_RATE_XP_QUEST,
     CONFIG_FLOAT_RATE_XP_EXPLORE,
@@ -290,6 +298,7 @@ enum eConfigBoolValues
     CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_GUILD,
     CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_AUCTION,
     CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_MAIL,
+    CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CALENDAR,
     CONFIG_BOOL_ALLOW_TWO_SIDE_WHO_LIST,
     CONFIG_BOOL_ALLOW_TWO_SIDE_ADD_FRIEND,
     CONFIG_BOOL_INSTANCE_IGNORE_LEVEL,
@@ -324,14 +333,26 @@ enum eConfigBoolValues
     CONFIG_BOOL_SKILL_FAIL_POSSIBLE_FISHINGPOOL,
     CONFIG_BOOL_BATTLEGROUND_CAST_DESERTER,
     CONFIG_BOOL_BATTLEGROUND_QUEUE_ANNOUNCER_START,
+    CONFIG_BOOL_BATTLEGROUND_SCORE_STATISTICS,
     CONFIG_BOOL_ARENA_AUTO_DISTRIBUTE_POINTS,
     CONFIG_BOOL_ARENA_QUEUE_ANNOUNCER_JOIN,
     CONFIG_BOOL_ARENA_QUEUE_ANNOUNCER_EXIT,
+    CONFIG_BOOL_OUTDOORPVP_SI_ENABLED,
+    CONFIG_BOOL_OUTDOORPVP_EP_ENABLED,
+    CONFIG_BOOL_OUTDOORPVP_HP_ENABLED,
+    CONFIG_BOOL_OUTDOORPVP_ZM_ENABLED,
+    CONFIG_BOOL_OUTDOORPVP_TF_ENABLED,
+    CONFIG_BOOL_OUTDOORPVP_NA_ENABLED,
+    CONFIG_BOOL_OUTDOORPVP_GH_ENABLED,
     CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET,
     CONFIG_BOOL_STATS_SAVE_ONLY_ON_LOGOUT,
     CONFIG_BOOL_CLEAN_CHARACTER_DB,
     CONFIG_BOOL_VMAP_INDOOR_CHECK,
     CONFIG_BOOL_PET_UNSUMMON_AT_MOUNT,
+    CONFIG_BOOL_MMAP_ENABLED,
+    CONFIG_BOOL_PLAYER_COMMANDS,
+    CONFIG_BOOL_PATH_FIND_OPTIMIZE,
+    CONFIG_BOOL_PATH_FIND_NORMALIZE_Z,
     CONFIG_BOOL_VALUE_COUNT
 };
 
@@ -358,7 +379,7 @@ enum RealmType
     REALM_TYPE_RP       = 6,
     REALM_TYPE_RPPVP    = 8,
     REALM_TYPE_FFA_PVP  = 16                                // custom, free for all pvp mode like arena PvP in all zones except rest activated places and sanctuaries
-                                                            // replaced by REALM_PVP in realm list
+                          // replaced by REALM_PVP in realm list
 };
 
 /// This is values from first column of Cfg_Categories.dbc (1.12.1 have another numeration)
@@ -408,25 +429,20 @@ enum RealmZone
 /// Storage class for commands issued for delayed execution
 struct CliCommandHolder
 {
-    typedef void Print(void*, const char*);
-    typedef void CommandFinished(void*, bool success);
+    typedef std::function<void(const char *)> Print;
+    typedef std::function<void(bool)> CommandFinished;
 
     uint32 m_cliAccountId;                                  // 0 for console and real account id for RA/soap
     AccountTypes m_cliAccessLevel;
-    void* m_callbackArg;
-    char *m_command;
-    Print* m_print;
-    CommandFinished* m_commandFinished;
+    std::vector<char> m_command;
+    Print m_print;
+    CommandFinished m_commandFinished;
 
-    CliCommandHolder(uint32 accountId, AccountTypes cliAccessLevel, void* callbackArg, const char *command, Print* zprint, CommandFinished* commandFinished)
-        : m_cliAccountId(accountId), m_cliAccessLevel(cliAccessLevel), m_callbackArg(callbackArg), m_print(zprint), m_commandFinished(commandFinished)
+    CliCommandHolder(uint32 accountId, AccountTypes cliAccessLevel, const char* command, Print print, CommandFinished commandFinished)
+        : m_cliAccountId(accountId), m_cliAccessLevel(cliAccessLevel), m_command(strlen(command)+1), m_print(print), m_commandFinished(commandFinished)
     {
-        size_t len = strlen(command)+1;
-        m_command = new char[len];
-        memcpy(m_command, command, len);
+        memcpy(&m_command[0], command, m_command.size() - 1);
     }
-
-    ~CliCommandHolder() { delete[] m_command; }
 };
 
 /// The World
@@ -438,8 +454,10 @@ class World
         World();
         ~World();
 
+        void CleanupsBeforeStop();
+
         WorldSession* FindSession(uint32 id) const;
-        void AddSession(WorldSession *s);
+        void AddSession(WorldSession* s);
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
@@ -449,11 +467,6 @@ class World
         /// Get the maximum number of parallel sessions on the server since last reboot
         uint32 GetMaxQueuedSessionCount() const { return m_maxQueuedSessionCount; }
         uint32 GetMaxActiveSessionCount() const { return m_maxActiveSessionCount; }
-        Player* FindPlayerInZone(uint32 zone);
-
-        Weather* FindWeather(uint32 id) const;
-        Weather* AddWeather(uint32 zone_id);
-        void RemoveWeather(uint32 zone_id);
 
         /// Get the active session server limit (or security level limitations)
         uint32 GetPlayerAmountLimit() const { return m_playerLimit >= 0 ? m_playerLimit : 0; }
@@ -462,7 +475,7 @@ class World
         /// Set the active session server limit (or security level limitation)
         void SetPlayerLimit(int32 limit, bool needUpdate = false);
 
-        //player Queue
+        // player Queue
         typedef std::list<WorldSession*> Queue;
         void AddQueuedSession(WorldSession*);
         bool RemoveQueuedSession(WorldSession* session);
@@ -498,59 +511,61 @@ class World
         uint16 GetConfigMaxSkillValue() const
         {
             uint32 lvl = getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL);
-            return lvl > 60 ? 300 + ((lvl - 60) * 75) / 10 : lvl*5;
+            return lvl > 60 ? 300 + ((lvl - 60) * 75) / 10 : lvl * 5;
         }
 
         void SetInitialWorldSettings();
         void LoadConfigSettings(bool reload = false);
 
         void SendWorldText(int32 string_id, ...);
-        void SendGlobalText(const char* text, WorldSession *self);
-        void SendGlobalMessage(WorldPacket *packet, WorldSession *self = 0, uint32 team = 0);
-        void SendZoneMessage(uint32 zone, WorldPacket *packet, WorldSession *self = 0, uint32 team = 0);
-        void SendZoneText(uint32 zone, const char *text, WorldSession *self = 0, uint32 team = 0);
-        void SendServerMessage(ServerMessageType type, const char *text = "", Player* player = NULL);
+        void SendGlobalMessage(WorldPacket const& packet) const;
+        void SendServerMessage(ServerMessageType type, const char* text = "", Player* player = nullptr) const;
+        void SendZoneUnderAttackMessage(uint32 zoneId, Team team);
+        void SendDefenseMessage(uint32 zoneId, int32 textId);
 
         /// Are we in the middle of a shutdown?
         bool IsShutdowning() const { return m_ShutdownTimer > 0; }
         void ShutdownServ(uint32 time, uint32 options, uint8 exitcode);
         void ShutdownCancel();
-        void ShutdownMsg(bool show = false, Player* player = NULL);
+        void ShutdownMsg(bool show = false, Player* player = nullptr);
         static uint8 GetExitCode() { return m_ExitCode; }
         static void StopNow(uint8 exitcode) { m_stopEvent = true; m_ExitCode = exitcode; }
         static bool IsStopped() { return m_stopEvent; }
 
         void Update(uint32 diff);
 
-        void UpdateSessions( uint32 diff );
+        void UpdateSessions(uint32 diff);
 
         /// Get a server configuration element (see #eConfigFloatValues)
-        void setConfig(eConfigFloatValues index,float value) { m_configFloatValues[index]=value; }
+        void setConfig(eConfigFloatValues index, float value) { m_configFloatValues[index] = value; }
         /// Get a server configuration element (see #eConfigFloatValues)
         float getConfig(eConfigFloatValues rate) const { return m_configFloatValues[rate]; }
 
         /// Set a server configuration element (see #eConfigUInt32Values)
-        void setConfig(eConfigUInt32Values index, uint32 value) { m_configUint32Values[index]=value; }
+        void setConfig(eConfigUInt32Values index, uint32 value) { m_configUint32Values[index] = value; }
         /// Get a server configuration element (see #eConfigUInt32Values)
         uint32 getConfig(eConfigUInt32Values index) const { return m_configUint32Values[index]; }
 
         /// Set a server configuration element (see #eConfigInt32Values)
-        void setConfig(eConfigInt32Values index, int32 value) { m_configInt32Values[index]=value; }
+        void setConfig(eConfigInt32Values index, int32 value) { m_configInt32Values[index] = value; }
         /// Get a server configuration element (see #eConfigInt32Values)
         int32 getConfig(eConfigInt32Values index) const { return m_configInt32Values[index]; }
 
         /// Set a server configuration element (see #eConfigBoolValues)
-        void setConfig(eConfigBoolValues index, bool value) { m_configBoolValues[index]=value; }
+        void setConfig(eConfigBoolValues index, bool value) { m_configBoolValues[index] = value; }
         /// Get a server configuration element (see #eConfigBoolValues)
         bool getConfig(eConfigBoolValues index) const { return m_configBoolValues[index]; }
 
+        /// Get configuration about force-loaded maps
+        bool isForceLoadMap(uint32 id) const { return m_configForceLoadMapIds.find(id) != m_configForceLoadMapIds.end(); }
+
         /// Are we on a "Player versus Player" server?
-        bool IsPvPRealm() { return (getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_PVP || getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_RPPVP || getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_FFA_PVP); }
-        bool IsFFAPvPRealm() { return getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_FFA_PVP; }
+        bool IsPvPRealm() const { return (getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_PVP || getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_RPPVP || getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_FFA_PVP); }
+        bool IsFFAPvPRealm() const { return getConfig(CONFIG_UINT32_GAME_TYPE) == REALM_TYPE_FFA_PVP; }
 
         void KickAll();
         void KickAllLess(AccountTypes sec);
-        BanReturn BanAccount(BanMode mode, std::string nameOrIP, uint32 duration_secs, std::string reason, std::string author);
+        BanReturn BanAccount(BanMode mode, std::string nameOrIP, uint32 duration_secs, std::string reason, const std::string& author);
         bool RemoveBanAccount(BanMode mode, std::string nameOrIP);
 
         // for max speed access
@@ -566,24 +581,36 @@ class World
         static uint32 GetRelocationAINotifyDelay()          { return m_relocation_ai_notify_delay; }
 
         void ProcessCliCommands();
-        void QueueCliCommand(CliCommandHolder* commandHolder) { cliCmdQueue.add(commandHolder); }
+        void QueueCliCommand(const CliCommandHolder* commandHolder) { std::lock_guard<std::mutex> guard(m_cliCommandQueueLock); m_cliCommandQueue.push_back(commandHolder); }
 
         void UpdateResultQueue();
         void InitResultQueue();
 
         void UpdateRealmCharCount(uint32 accid);
 
-        LocaleConstant GetAvailableDbcLocale(LocaleConstant locale) const { if(m_availableDbcLocaleMask & (1 << locale)) return locale; else return m_defaultDbcLocale; }
+        LocaleConstant GetAvailableDbcLocale(LocaleConstant locale) const { if (m_availableDbcLocaleMask & (1 << locale)) return locale; else return m_defaultDbcLocale; }
 
-        //used World DB version
+        // used World DB version
         void LoadDBVersion();
-        char const* GetDBVersion() { return m_DBVersion.c_str(); }
-        char const* GetCreatureEventAIVersion() { return m_CreatureEventAIVersion.c_str(); }
+        char const* GetDBVersion() const { return m_DBVersion.c_str(); }
+        char const* GetCreatureEventAIVersion() const { return m_CreatureEventAIVersion.c_str(); }
+
+
+        /**
+        * \brief: force all client to request player data
+        * \param: ObjectGuid guid : guid of the specified player
+        * \returns: void
+        *
+        * Description: InvalidatePlayerDataToAllClient force all connected clients to clear specified player cache
+        * FullName: World::InvalidatePlayerDataToAllClient
+        * Access: public
+        **/
+        void InvalidatePlayerDataToAllClient(ObjectGuid guid) const;
 
     protected:
         void _UpdateGameTime();
         // callback for UpdateRealmCharacters
-        void _UpdateRealmCharCount(QueryResult *resultCharCount, uint32 accountId);
+        void _UpdateRealmCharCount(QueryResult* resultCharCount, uint32 accountId);
 
         void InitDailyQuestResetTime();
         void InitWeeklyQuestResetTime();
@@ -604,10 +631,10 @@ class World
         void setConfigMinMax(eConfigUInt32Values index, char const* fieldname, uint32 defvalue, uint32 minvalue, uint32 maxvalue);
         void setConfigMinMax(eConfigInt32Values index, char const* fieldname, int32 defvalue, int32 minvalue, int32 maxvalue);
         void setConfigMinMax(eConfigFloatValues index, char const* fieldname, float defvalue, float minvalue, float maxvalue);
-        bool configNoReload(bool reload, eConfigUInt32Values index, char const* fieldname, uint32 defvalue);
-        bool configNoReload(bool reload, eConfigInt32Values index, char const* fieldname, int32 defvalue);
-        bool configNoReload(bool reload, eConfigFloatValues index, char const* fieldname, float defvalue);
-        bool configNoReload(bool reload, eConfigBoolValues index, char const* fieldname, bool defvalue);
+        bool configNoReload(bool reload, eConfigUInt32Values index, char const* fieldname, uint32 defvalue) const;
+        bool configNoReload(bool reload, eConfigInt32Values index, char const* fieldname, int32 defvalue) const;
+        bool configNoReload(bool reload, eConfigFloatValues index, char const* fieldname, float defvalue) const;
+        bool configNoReload(bool reload, eConfigBoolValues index, char const* fieldname, bool defvalue) const;
 
         static volatile bool m_stopEvent;
         static uint8 m_ExitCode;
@@ -620,13 +647,10 @@ class World
         uint32 mail_timer;
         uint32 mail_timer_expires;
 
-        typedef UNORDERED_MAP<uint32, Weather*> WeatherMap;
-        WeatherMap m_weathers;
-        typedef UNORDERED_MAP<uint32, WorldSession*> SessionMap;
+        typedef std::unordered_map<uint32, WorldSession*> SessionMap;
         SessionMap m_sessions;
         uint32 m_maxActiveSessionCount;
         uint32 m_maxQueuedSessionCount;
-
 
         uint32 m_configUint32Values[CONFIG_UINT32_VALUE_COUNT];
         int32 m_configInt32Values[CONFIG_INT32_VALUE_COUNT];
@@ -634,8 +658,8 @@ class World
         bool m_configBoolValues[CONFIG_BOOL_VALUE_COUNT];
 
         int32 m_playerLimit;
-        LocaleConstant m_defaultDbcLocale;                     // from config for one from loaded DBC locales
-        uint32 m_availableDbcLocaleMask;                       // by loaded DBC
+        LocaleConstant m_defaultDbcLocale;                  // from config for one from loaded DBC locales
+        uint32 m_availableDbcLocaleMask;                    // by loaded DBC
         void DetectDBCLang();
         bool m_allowMovement;
         std::string m_motd;
@@ -654,23 +678,29 @@ class World
         static uint32 m_relocation_ai_notify_delay;
 
         // CLI command holder to be thread safe
-        ACE_Based::LockedQueue<CliCommandHolder*,ACE_Thread_Mutex> cliCmdQueue;
+        std::mutex m_cliCommandQueueLock;
+        std::deque<const CliCommandHolder *> m_cliCommandQueue;
 
         // next daily quests reset time
         time_t m_NextDailyQuestReset;
         time_t m_NextWeeklyQuestReset;
         time_t m_NextMonthlyQuestReset;
 
-        //Player Queue
+        // Player Queue
         Queue m_QueuedSessions;
 
-        //sessions that are added async
+        // sessions that are added async
         void AddSession_(WorldSession* s);
-        ACE_Based::LockedQueue<WorldSession*, ACE_Thread_Mutex> addSessQueue;
 
-        //used versions
+        std::mutex m_sessionAddQueueLock;
+        std::deque<WorldSession *> m_sessionAddQueue;
+
+        // used versions
         std::string m_DBVersion;
         std::string m_CreatureEventAIVersion;
+
+        // List of Maps that should be force-loaded on startup
+        std::set<uint32> m_configForceLoadMapIds;
 };
 
 extern uint32 realmID;

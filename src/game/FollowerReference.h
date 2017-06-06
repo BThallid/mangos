@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,11 +24,11 @@
 class TargetedMovementGeneratorBase;
 class Unit;
 
-class MANGOS_DLL_SPEC FollowerReference : public Reference<Unit, TargetedMovementGeneratorBase>
+class FollowerReference : public Reference<Unit, TargetedMovementGeneratorBase>
 {
     protected:
-        void targetObjectBuildLink();
-        void targetObjectDestroyLink();
-        void sourceObjectDestroyLink();
+        void targetObjectBuildLink() override;
+        void targetObjectDestroyLink() override;
+        void sourceObjectDestroyLink() override;
 };
 #endif

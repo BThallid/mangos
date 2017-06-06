@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
  */
 
 #include "MassMailMgr.h"
-#include "Policies/SingletonImp.h"
+#include "Policies/Singleton.h"
 #include "Database/DatabaseEnv.h"
 #include "Database/DatabaseImpl.h"
 #include "SharedDefines.h"
@@ -35,7 +35,7 @@
 
 INSTANTIATE_SINGLETON_1(MassMailMgr);
 
-void MassMailMgr::AddMassMailTask(MailDraft* mailProto, MailSender sender, uint32 raceMask)
+void MassMailMgr::AddMassMailTask(MailDraft* mailProto, const MailSender& sender, uint32 raceMask)
 {
     if (RACEMASK_ALL_PLAYABLE & ~raceMask)                  // have races not included in mask
     {
@@ -49,7 +49,7 @@ void MassMailMgr::AddMassMailTask(MailDraft* mailProto, MailSender sender, uint3
 
 struct MassMailerQueryHandler
 {
-    void HandleQueryCallback(QueryResult * result, MailDraft* mailProto, MailSender sender)
+    void HandleQueryCallback(QueryResult* result, MailDraft* mailProto, MailSender sender)
     {
         if (!result)
             return;
@@ -58,17 +58,17 @@ struct MassMailerQueryHandler
 
         do
         {
-            Field *fields = result->Fetch();
+            Field* fields = result->Fetch();
             recievers.insert(fields[0].GetUInt32());
-
-        } while (result->NextRow());
+        }
+        while (result->NextRow());
         delete result;
     }
 } massMailerQueryHandler;
 
-void MassMailMgr::AddMassMailTask(MailDraft* mailProto, MailSender sender, char const* query)
+void MassMailMgr::AddMassMailTask(MailDraft* mailProto, const MailSender& sender, char const* query)
 {
-    CharacterDatabase.AsyncPQuery(&massMailerQueryHandler, &MassMailerQueryHandler::HandleQueryCallback, mailProto, sender, query);
+    CharacterDatabase.AsyncPQuery(&massMailerQueryHandler, &MassMailerQueryHandler::HandleQueryCallback, mailProto, sender, "%s", query);
 }
 
 void MassMailMgr::Update(bool sendall /*= false*/)
@@ -88,7 +88,7 @@ void MassMailMgr::Update(bool sendall /*= false*/)
             task.m_receivers.erase(task.m_receivers.begin());
 
             ObjectGuid receiver_guid = ObjectGuid(HIGHGUID_PLAYER, receiver_lowguid);
-            Player *receiver = sObjectMgr.GetPlayer(receiver_guid);
+            Player* receiver = sObjectMgr.GetPlayer(receiver_guid);
 
             // last case. can be just send
             if (task.m_receivers.empty())
@@ -115,7 +115,7 @@ void MassMailMgr::Update(bool sendall /*= false*/)
         if (task.m_receivers.empty())
             m_massMails.pop_front();
     }
-    while(!m_massMails.empty() && (sendall || maxcount > 0));
+    while (!m_massMails.empty() && (sendall || maxcount > 0));
 }
 
 void MassMailMgr::GetStatistic(uint32& tasks, uint32& mails, uint32& needTime) const
@@ -131,6 +131,5 @@ void MassMailMgr::GetStatistic(uint32& tasks, uint32& mails, uint32& needTime) c
     // 50 msecs is tick length
     needTime = 50 * mailsCount / sWorld.getConfig(CONFIG_UINT32_MASS_MAILER_SEND_PER_TICK) / IN_MILLISECONDS;
 }
-
 
 /*! @} */

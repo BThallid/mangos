@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,6 @@
 #include "Common.h"
 #include "Platform/Define.h"
 #include "Policies/Singleton.h"
-#include <ace/Thread_Mutex.h>
-#include <ace/RW_Thread_Mutex.h>
-#include "Utilities/UnorderedMapSet.h"
 #include "Policies/ThreadingModel.h"
 
 #include "UpdateData.h"
@@ -34,8 +31,7 @@
 #include "Player.h"
 #include "Corpse.h"
 
-#include <set>
-#include <list>
+#include <mutex>
 
 class Unit;
 class WorldObject;
@@ -46,10 +42,10 @@ class HashMapHolder
 {
     public:
 
-        typedef UNORDERED_MAP<ObjectGuid, T*>   MapType;
-        typedef ACE_RW_Thread_Mutex LockType;
-        typedef ACE_Read_Guard<LockType> ReadGuard;
-        typedef ACE_Write_Guard<LockType> WriteGuard;
+        typedef std::unordered_map<ObjectGuid, T*>   MapType;
+        typedef std::mutex LockType;
+        typedef std::lock_guard<std::mutex> ReadGuard;
+        typedef std::lock_guard<std::mutex> WriteGuard;
 
         static void Insert(T* o)
         {
@@ -67,7 +63,7 @@ class HashMapHolder
         {
             ReadGuard guard(i_lock);
             typename MapType::iterator itr = m_objectMap.find(guid);
-            return (itr != m_objectMap.end()) ? itr->second : NULL;
+            return (itr != m_objectMap.end()) ? itr->second : nullptr;
         }
 
         static MapType& GetContainer() { return m_objectMap; }
@@ -76,32 +72,49 @@ class HashMapHolder
 
     private:
 
-        //Non instanceable only static
+        // Non instanceable only static
         HashMapHolder() {}
 
         static LockType i_lock;
         static MapType  m_objectMap;
 };
 
-class MANGOS_DLL_DECL ObjectAccessor : public MaNGOS::Singleton<ObjectAccessor, MaNGOS::ClassLevelLockable<ObjectAccessor, ACE_Thread_Mutex> >
+class PlayerNameMapHolder
 {
-    friend class MaNGOS::OperatorNew<ObjectAccessor>;
+    public:
+        typedef std::unordered_map<std::string, Player*> MapType;
 
-    ObjectAccessor();
-    ~ObjectAccessor();
-    ObjectAccessor(const ObjectAccessor &);
-    ObjectAccessor& operator=(const ObjectAccessor &);
+        static void Insert(Player* p);
+        static void Remove(Player* p);
+        static Player* Find(std::string const& name);
+
+    private:
+
+       // Non instanceable only static
+       PlayerNameMapHolder() {}
+
+       static MapType m_objectMap;
+};
+
+class ObjectAccessor : public MaNGOS::Singleton<ObjectAccessor, MaNGOS::ClassLevelLockable<ObjectAccessor, std::mutex> >
+{
+        friend class MaNGOS::OperatorNew<ObjectAccessor>;
+
+        ObjectAccessor();
+        ~ObjectAccessor();
+        ObjectAccessor(const ObjectAccessor&);
+        ObjectAccessor& operator=(const ObjectAccessor&);
 
     public:
-        typedef UNORDERED_MAP<ObjectGuid, Corpse*> Player2CorpsesMapType;
+        typedef std::unordered_map<ObjectGuid, Corpse*> Player2CorpsesMapType;
 
         // Search player at any map in world and other objects at same map with `obj`
         // Note: recommended use Map::GetUnit version if player also expected at same map only
         static Unit* GetUnit(WorldObject const& obj, ObjectGuid guid);
 
         // Player access
-        static Player* FindPlayer(ObjectGuid guid);         // if need player at specific map better use Map::GetPlayer
-        static Player* FindPlayerByName(const char *name);
+        static Player* FindPlayer(ObjectGuid guid, bool inWorld = true);// if need player at specific map better use Map::GetPlayer
+        static Player* FindPlayerByName(char const* name, bool inWorld = true);
         static void KickPlayer(ObjectGuid guid);
 
         HashMapHolder<Player>::MapType& GetPlayers()
@@ -109,28 +122,28 @@ class MANGOS_DLL_DECL ObjectAccessor : public MaNGOS::Singleton<ObjectAccessor, 
             return HashMapHolder<Player>::GetContainer();
         }
 
-        void SaveAllPlayers();
+        void SaveAllPlayers() const;
 
         // Corpse access
         Corpse* GetCorpseForPlayerGUID(ObjectGuid guid);
         static Corpse* GetCorpseInMap(ObjectGuid guid, uint32 mapid);
-        void RemoveCorpse(Corpse *corpse);
+        void RemoveCorpse(Corpse* corpse);
         void AddCorpse(Corpse* corpse);
-        void AddCorpsesToGrid(GridPair const& gridpair,GridType& grid,Map* map);
+        void AddCorpsesToGrid(GridPair const& gridpair, GridType& grid, Map* map);
         Corpse* ConvertCorpseForPlayer(ObjectGuid player_guid, bool insignia = false);
         void RemoveOldCorpses();
 
         // For call from Player/Corpse AddToWorld/RemoveFromWorld only
-        void AddObject(Corpse *object) { HashMapHolder<Corpse>::Insert(object); }
-        void AddObject(Player *object) { HashMapHolder<Player>::Insert(object); }
-        void RemoveObject(Corpse *object) { HashMapHolder<Corpse>::Remove(object); }
-        void RemoveObject(Player *object) { HashMapHolder<Player>::Remove(object); }
+        void AddObject(Corpse* object) { HashMapHolder<Corpse>::Insert(object); }
+        void AddObject(Player* player);
+        void RemoveObject(Corpse* object) { HashMapHolder<Corpse>::Remove(object); }
+        void RemoveObject(Player* player);
 
     private:
 
         Player2CorpsesMapType   i_player2corpse;
 
-        typedef ACE_Thread_Mutex LockType;
+        typedef std::mutex LockType;
         typedef MaNGOS::GeneralLock<LockType > Guard;
 
         LockType i_playerGuard;

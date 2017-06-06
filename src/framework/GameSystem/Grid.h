@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,14 +40,14 @@ template<class A, class T, class O> class GridLoader;
 
 template
 <
-class ACTIVE_OBJECT,
-class WORLD_OBJECT_TYPES,
-class GRID_OBJECT_TYPES
->
-class MANGOS_DLL_DECL Grid
+    class ACTIVE_OBJECT,
+    class WORLD_OBJECT_TYPES,
+    class GRID_OBJECT_TYPES
+    >
+class Grid
 {
-    // allows the GridLoader to access its internals
-    template<class A, class T, class O> friend class GridLoader;
+        // allows the GridLoader to access its internals
+        template<class A, class T, class O> friend class GridLoader;
 
     public:
 
@@ -59,7 +59,7 @@ class MANGOS_DLL_DECL Grid
         /** an object of interested enters the grid
          */
         template<class SPECIFIC_OBJECT>
-        bool AddWorldObject(SPECIFIC_OBJECT *obj)
+        bool AddWorldObject(SPECIFIC_OBJECT* obj)
         {
             return i_objects.template insert<SPECIFIC_OBJECT>(obj);
         }
@@ -67,7 +67,7 @@ class MANGOS_DLL_DECL Grid
         /** an object of interested exits the grid
          */
         template<class SPECIFIC_OBJECT>
-        bool RemoveWorldObject(SPECIFIC_OBJECT *obj)
+        bool RemoveWorldObject(SPECIFIC_OBJECT* obj)
         {
             return i_objects.template remove<SPECIFIC_OBJECT>(obj);
         }
@@ -75,7 +75,7 @@ class MANGOS_DLL_DECL Grid
         /** Grid visitor for grid objects
          */
         template<class T>
-        void Visit(TypeContainerVisitor<T, TypeMapContainer<GRID_OBJECT_TYPES> > &visitor)
+        void Visit(TypeContainerVisitor<T, TypeMapContainer<GRID_OBJECT_TYPES> >& visitor)
         {
             visitor.Visit(i_container);
         }
@@ -83,7 +83,7 @@ class MANGOS_DLL_DECL Grid
         /** Grid visitor for world objects
          */
         template<class T>
-        void Visit(TypeContainerVisitor<T, TypeMapContainer<WORLD_OBJECT_TYPES> > &visitor)
+        void Visit(TypeContainerVisitor<T, TypeMapContainer<WORLD_OBJECT_TYPES> >& visitor)
         {
             visitor.Visit(i_objects);
         }
@@ -98,7 +98,7 @@ class MANGOS_DLL_DECL Grid
         /** Inserts a container type object into the grid.
          */
         template<class SPECIFIC_OBJECT>
-        bool AddGridObject(SPECIFIC_OBJECT *obj)
+        bool AddGridObject(SPECIFIC_OBJECT* obj)
         {
             if (obj->isActiveObject())
                 m_activeGridObjects.insert(obj);
@@ -109,7 +109,7 @@ class MANGOS_DLL_DECL Grid
         /** Removes a containter type object from the grid
          */
         template<class SPECIFIC_OBJECT>
-        bool RemoveGridObject(SPECIFIC_OBJECT *obj)
+        bool RemoveGridObject(SPECIFIC_OBJECT* obj)
         {
             if (obj->isActiveObject())
                 m_activeGridObjects.erase(obj);

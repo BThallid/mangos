@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,26 +24,26 @@
 class Creature;
 
 template < class T >
-class MANGOS_DLL_SPEC HomeMovementGenerator;
+class HomeMovementGenerator;
 
 template <>
-class MANGOS_DLL_SPEC HomeMovementGenerator<Creature>
-: public MovementGeneratorMedium< Creature, HomeMovementGenerator<Creature> >
+class HomeMovementGenerator<Creature>
+    : public MovementGeneratorMedium< Creature, HomeMovementGenerator<Creature> >
 {
     public:
 
         HomeMovementGenerator() : arrived(false) {}
         ~HomeMovementGenerator() {}
 
-        void Initialize(Creature &);
-        void Finalize(Creature &);
-        void Interrupt(Creature &) {}
-        void Reset(Creature &);
-        bool Update(Creature &, const uint32 &);
-        MovementGeneratorType GetMovementGeneratorType() const { return HOME_MOTION_TYPE; }
+        void Initialize(Creature&);
+        void Finalize(Creature&);
+        void Interrupt(Creature&) {}
+        void Reset(Creature&);
+        bool Update(Creature&, const uint32&);
+        MovementGeneratorType GetMovementGeneratorType() const override { return HOME_MOTION_TYPE; }
 
     private:
-        void _setTargetLocation(Creature &);
+        void _setTargetLocation(Creature&);
         bool arrived;
 };
 #endif

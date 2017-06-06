@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #include "Object.h"
 #include "Database/DatabaseEnv.h"
 #include "GridDefines.h"
-#include "LootMgr.h"
 
 enum CorpseType
 {
@@ -50,40 +49,39 @@ enum CorpseFlags
 class Corpse : public WorldObject
 {
     public:
-        explicit Corpse( CorpseType type = CORPSE_BONES );
-        ~Corpse( );
+        explicit Corpse(CorpseType type = CORPSE_BONES);
+        ~Corpse();
 
-        void AddToWorld();
-        void RemoveFromWorld();
+        void AddToWorld() override;
+        void RemoveFromWorld() override;
 
-        bool Create( uint32 guidlow );
-        bool Create( uint32 guidlow, Player *owner );
+        bool Create(uint32 guidlow);
+        bool Create(uint32 guidlow, Player* owner);
 
         void SaveToDB();
-        bool LoadFromDB(uint32 guid, Field *fields);
+        bool LoadFromDB(uint32 guid, Field* fields);
 
         void DeleteBonesFromWorld();
-        void DeleteFromDB();
+        void DeleteFromDB() const;
 
         ObjectGuid const& GetOwnerGuid() const { return GetGuidValue(CORPSE_FIELD_OWNER); }
 
         time_t const& GetGhostTime() const { return m_time; }
-        void ResetGhostTime() { m_time = time(NULL); }
+        void ResetGhostTime() { m_time = time(nullptr); }
         CorpseType GetType() const { return m_type; }
 
-        bool IsHostileTo(Unit const* unit) const;
-        bool IsFriendlyTo(Unit const* unit) const;
+        bool IsHostileTo(Unit const* unit) const override;
+        bool IsFriendlyTo(Unit const* unit) const override;
 
         GridPair const& GetGrid() const { return m_grid; }
         void SetGrid(GridPair const& grid) { m_grid = grid; }
 
-        bool isVisibleForInState(Player const* u, WorldObject const* viewPoint, bool inVisibleList) const;
+        bool isVisibleForInState(Player const* u, WorldObject const* viewPoint, bool inVisibleList) const override;
 
-        Loot loot;                                          // remove insignia ONLY at BG
         Player* lootRecipient;
         bool lootForBody;
 
-        GridReference<Corpse> &GetGridRef() { return m_gridRef; }
+        GridReference<Corpse>& GetGridRef() { return m_gridRef; }
 
         bool IsExpired(time_t t) const;
     private:

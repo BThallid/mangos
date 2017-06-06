@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,27 +30,27 @@ Sha1Hash::~Sha1Hash()
     SHA1_Init(&mC);
 }
 
-void Sha1Hash::UpdateData(const uint8 *dta, int len)
+void Sha1Hash::UpdateData(const uint8* dta, int len)
 {
     SHA1_Update(&mC, dta, len);
 }
 
-void Sha1Hash::UpdateData(const std::string &str)
+void Sha1Hash::UpdateData(const std::string& str)
 {
     UpdateData((uint8 const*)str.c_str(), str.length());
 }
 
-void Sha1Hash::UpdateBigNumbers(BigNumber *bn0, ...)
+void Sha1Hash::UpdateBigNumbers(BigNumber* bn0, ...)
 {
     va_list v;
-    BigNumber *bn;
+    BigNumber* bn;
 
     va_start(v, bn0);
     bn = bn0;
     while (bn)
     {
         UpdateData(bn->AsByteArray(), bn->GetNumBytes());
-        bn = va_arg(v, BigNumber *);
+        bn = va_arg(v, BigNumber*);
     }
     va_end(v);
 }

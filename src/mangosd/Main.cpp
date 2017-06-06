@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,13 +29,16 @@
 #include "SystemConfig.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
 #include "revision.h"
-#include "revision_nr.h"
+
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
-#include <ace/Version.h>
-#include <ace/Get_Opt.h>
 
-#ifdef WIN32
+#include <boost/program_options.hpp>
+#include <boost/version.hpp>
+
+#include <iostream>
+
+#ifdef _WIN32
 #include "ServiceWin32.h"
 char serviceName[] = "mangosd";
 char serviceLongName[] = "MaNGOS world service";
@@ -57,155 +60,120 @@ DatabaseType LoginDatabase;                                 ///< Accessor to the
 
 uint32 realmID;                                             ///< Id of the realm
 
-/// Print out the usage string for this program on the console.
-void usage(const char *prog)
-{
-    sLog.outString("Usage: \n %s [<options>]\n"
-        "    -v, --version            print version and exist\n\r"
-        "    -c config_file           use config_file as configuration file\n\r"
-        "    -a, --ahbot config_file  use config_file as ahbot configuration file\n\r"
-        #ifdef WIN32
-        "    Running as service functions:\n\r"
-        "    -s run                   run as service\n\r"
-        "    -s install               install service\n\r"
-        "    -s uninstall             uninstall service\n\r"
-        #else
-        "    Running as daemon functions:\n\r"
-        "    -s run                   run as daemon\n\r"
-        "    -s stop                  stop daemon\n\r"
-        #endif
-        ,prog);
-}
-
 /// Launch the mangos server
-extern int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
-    ///- Command line parsing
-    char const* cfg_file = _MANGOSD_CONFIG;
+    std::string auctionBotConfig, configFile, serviceParameter;
 
-
-    char const *options = ":a:c:s:";
-
-    ACE_Get_Opt cmd_opts(argc, argv, options);
-    cmd_opts.long_option("version", 'v', ACE_Get_Opt::NO_ARG);
-    cmd_opts.long_option("ahbot", 'a', ACE_Get_Opt::ARG_REQUIRED);
-
-    char serviceDaemonMode = '\0';
-
-    int option;
-    while ((option = cmd_opts()) != EOF)
-    {
-        switch (option)
-        {
-            case 'a':
-                sAuctionBotConfig.SetConfigFileName(cmd_opts.opt_arg());
-                break;
-            case 'c':
-                cfg_file = cmd_opts.opt_arg();
-                break;
-            case 'v':
-                printf("%s\n", _FULLVERSION(REVISION_DATE,REVISION_TIME,REVISION_NR,REVISION_ID));
-                return 0;
-            case 's':
-            {
-                const char *mode = cmd_opts.opt_arg();
-
-                if (!strcmp(mode, "run"))
-                    serviceDaemonMode = 'r';
-#ifdef WIN32
-                else if (!strcmp(mode, "install"))
-                    serviceDaemonMode = 'i';
-                else if (!strcmp(mode, "uninstall"))
-                    serviceDaemonMode = 'u';
+    boost::program_options::options_description desc("Allowed options");
+    desc.add_options()
+        ("ahbot,a", boost::program_options::value<std::string>(&auctionBotConfig), "ahbot configuration file")
+        ("config,c", boost::program_options::value<std::string>(&configFile)->default_value(_MANGOSD_CONFIG), "configuration file")
+        ("help,h", "prints usage")
+        ("version,v", "print version and exit")
+#ifdef _WIN32
+        ("s", boost::program_options::value<std::string>(&serviceParameter), "<run, install, uninstall> service");
 #else
-                else if (!strcmp(mode, "stop"))
-                    serviceDaemonMode = 's';
+        ("s", boost::program_options::value<std::string>(&serviceParameter), "<run, stop> service");
 #endif
-                else
-                {
-                    sLog.outError("Runtime-Error: -%c unsupported argument %s", cmd_opts.opt_opt(), mode);
-                    usage(argv[0]);
-                    Log::WaitBeforeContinueIfNeed();
-                    return 1;
-                }
-                break;
-            }
-            case ':':
-                sLog.outError("Runtime-Error: -%c option requires an input argument", cmd_opts.opt_opt());
-                usage(argv[0]);
-                Log::WaitBeforeContinueIfNeed();
-                return 1;
-            default:
-                sLog.outError("Runtime-Error: bad format of commandline arguments");
-                usage(argv[0]);
-                Log::WaitBeforeContinueIfNeed();
-                return 1;
+
+    boost::program_options::variables_map vm;
+
+    try
+    {
+        boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
+        boost::program_options::notify(vm);
+
+        if (vm.count("help"))
+        {
+            std::cout << desc << std::endl;
+            return 0;
+        }
+
+        if (vm.count("version"))
+        {
+            std::cout << _FULLVERSION(REVISION_DATE, REVISION_TIME, REVISION_ID) << std::endl;
+            std::cout << "Boost version " << (BOOST_VERSION / 10000) << "." << ((BOOST_VERSION / 100) % 1000) << "." << (BOOST_VERSION % 100) << std::endl;
+            return 0;
         }
     }
-
-#ifdef WIN32                                                // windows service command need execute before config read
-    switch (serviceDaemonMode)
+    catch (boost::program_options::error const &e)
     {
-        case 'i':
-            if (WinServiceInstall())
-                sLog.outString("Installing service");
-            return 1;
-        case 'u':
-            if (WinServiceUninstall())
-                sLog.outString("Uninstalling service");
-            return 1;
-        case 'r':
-            WinServiceRun();
-            break;
+        std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
+        std::cerr << desc << std::endl;
+
+        return 1;
+    }
+
+    if (vm.count("ahbot"))
+        sAuctionBotConfig.SetConfigFileName(auctionBotConfig);
+
+#ifdef _WIN32                                                // windows service command need execute before config read
+    if (vm.count("s"))
+    {
+        switch (::tolower(serviceParameter[0]))
+        {
+            case 'i':
+                if (WinServiceInstall())
+                    sLog.outString("Installing service");
+                return 1;
+            case 'u':
+                if (WinServiceUninstall())
+                    sLog.outString("Uninstalling service");
+                return 1;
+            case 'r':
+                WinServiceRun();
+                break;
+        }
     }
 #endif
 
-    if (!sConfig.SetSource(cfg_file))
+    if (!sConfig.SetSource(configFile))
     {
-        sLog.outError("Could not find configuration file %s.", cfg_file);
+        sLog.outError("Could not find configuration file %s.", configFile.c_str());
         Log::WaitBeforeContinueIfNeed();
         return 1;
     }
 
-#ifndef WIN32                                               // posix daemon commands need apply after config read
-    switch (serviceDaemonMode)
+#ifndef _WIN32                                               // posix daemon commands need apply after config read
+    if (vm.count("s"))
     {
-    case 'r':
-        startDaemon();
-        break;
-    case 's':
-        stopDaemon();
-        break;
+        switch (::tolower(serviceParameter[0]))
+        {
+            case 'r':
+                startDaemon();
+                break;
+            case 's':
+                stopDaemon();
+                break;
+        }
     }
 #endif
 
-    sLog.outString( "%s [world-daemon]", _FULLVERSION(REVISION_DATE,REVISION_TIME,REVISION_NR,REVISION_ID) );
-    sLog.outString( "<Ctrl-C> to stop." );
+    sLog.outString("%s [world-daemon]", _FULLVERSION(REVISION_DATE, REVISION_TIME, REVISION_ID));
+    sLog.outString("<Ctrl-C> to stop.");
     sLog.outString("\n\n"
-        "MM   MM         MM   MM  MMMMM   MMMM   MMMMM\n"
-        "MM   MM         MM   MM MMM MMM MM  MM MMM MMM\n"
-        "MMM MMM         MMM  MM MMM MMM MM  MM MMM\n"
-        "MM M MM         MMMM MM MMM     MM  MM  MMM\n"
-        "MM M MM  MMMMM  MM MMMM MMM     MM  MM   MMM\n"
-        "MM M MM M   MMM MM  MMM MMMMMMM MM  MM    MMM\n"
-        "MM   MM     MMM MM   MM MM  MMM MM  MM     MMM\n"
-        "MM   MM MMMMMMM MM   MM MMM MMM MM  MM MMM MMM\n"
-        "MM   MM MM  MMM MM   MM  MMMMMM  MMMM   MMMMM\n"
-        "        MM  MMM http://getmangos.com\n"
-        "        MMMMMM\n\n");
-    sLog.outString("Using configuration file %s.", cfg_file);
+                   "       _____     __  __       _   _  _____  ____   _____ \n"
+                   "      / ____|   |  \\/  |     | \\ | |/ ____|/ __ \\ / ____|\n"
+                   "     | |        | \\  / |     |  \\| | |  __  |  | | (___  \n"
+                   "     | |ontinued| |\\/| | __ _| . ` | | |_ | |  | |\\___ \\ \n"
+                   "     | |____    | |  | |/ _` | |\\  | |__| | |__| |____) |\n"
+                   "      \\_____|   |_|  |_| (_| |_| \\_|\\_____|\\____/ \\____/ \n"
+                   "      http://cmangos.net\\__,_|     Doing things right!\n\n");
+
+    sLog.outString("Using configuration file %s.", configFile.c_str());
 
     DETAIL_LOG("%s (Library: %s)", OPENSSL_VERSION_TEXT, SSLeay_version(SSLEAY_VERSION));
-    if (SSLeay() < 0x009080bfL )
+    if (SSLeay() < 0x009080bfL)
     {
         DETAIL_LOG("WARNING: Outdated version of OpenSSL lib. Logins to server may not work!");
         DETAIL_LOG("WARNING: Minimal required version [OpenSSL 0.9.8k]");
     }
 
-    DETAIL_LOG("Using ACE: %s", ACE_VERSION);
+    DETAIL_LOG("Using Boost: %s", BOOST_LIB_VERSION);
 
     ///- Set progress bars show mode
-    BarGoLink::SetOutputState(sConfig.GetBoolDefault("ShowProgressBars", true));
+    BarGoLink::SetOutputState(sConfig.GetBoolDefault("ShowProgressBars", false));
 
     ///- and run the 'Master'
     /// \todo Why do we need this 'Master'? Can't all of this be in the Main as for Realmd?

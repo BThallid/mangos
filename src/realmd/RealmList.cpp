@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,26 +24,28 @@
 #include "RealmList.h"
 #include "AuthCodes.h"
 #include "Util.h"                                           // for Tokens typedef
-#include "Policies/SingletonImp.h"
+#include "Policies/Singleton.h"
 #include "Database/DatabaseEnv.h"
 
-INSTANTIATE_SINGLETON_1( RealmList );
+INSTANTIATE_SINGLETON_1(RealmList);
 
 extern DatabaseType LoginDatabase;
 
-// will only support WoW 1.12.1/1.12.2 , WoW:TBC 2.4.3 and official release for WoW:WotLK and later, client builds 10505, 8606, 6005, 5875
+// will only support WoW 1.12.1/1.12.2/1.12.3 , WoW:TBC 2.4.3 and official release for WoW:WotLK and later, client builds 10505, 8606, 6141, 6005, 5875
 // if you need more from old build then add it in cases in realmd sources code
 // list sorted from high to low build and first build used as low bound for accepted by default range (any > it will accepted by realmd at least)
 
-static RealmBuildInfo ExpectedRealmdClientBuilds[] = {
+static const RealmBuildInfo ExpectedRealmdClientBuilds[] =
+{
     {12340, 3, 3, 5, 'a'},                                  // highest supported build, also auto accept all above for simplify future supported builds testing
     {11723, 3, 3, 3, 'a'},
     {11403, 3, 3, 2, ' '},
     {11159, 3, 3, 0, 'a'},
     {10505, 3, 2, 2, 'a'},
     {8606,  2, 4, 3, ' '},
-    {6005,  1,12, 2, ' '},
-    {5875,  1,12, 1, ' '},
+    {6141,  1, 12, 3, ' '},
+    {6005,  1, 12, 2, ' '},
+    {5875,  1, 12, 1, ' '},
     {0,     0, 0, 0, ' '}                                   // terminator
 };
 
@@ -54,15 +56,15 @@ RealmBuildInfo const* FindBuildInfo(uint16 _build)
         return &ExpectedRealmdClientBuilds[0];
 
     // continue from 1 with explicit equal check
-    for(int i = 1; ExpectedRealmdClientBuilds[i].build; ++i)
-        if(_build == ExpectedRealmdClientBuilds[i].build)
+    for (int i = 1; ExpectedRealmdClientBuilds[i].build; ++i)
+        if (_build == ExpectedRealmdClientBuilds[i].build)
             return &ExpectedRealmdClientBuilds[i];
 
     // none appropriate build
-    return NULL;
+    return nullptr;
 }
 
-RealmList::RealmList( ) : m_UpdateInterval(0), m_NextUpdateTime(time(NULL))
+RealmList::RealmList() : m_UpdateInterval(0), m_NextUpdateTime(time(nullptr))
 {
 }
 
@@ -81,7 +83,7 @@ void RealmList::Initialize(uint32 updateInterval)
     UpdateRealms(true);
 }
 
-void RealmList::UpdateRealm( uint32 ID, const std::string& name, const std::string& address, uint32 port, uint8 icon, RealmFlags realmflags, uint8 timezone, AccountTypes allowedSecurityLevel, float popu, const std::string& builds)
+void RealmList::UpdateRealm(uint32 ID, const std::string& name, const std::string& address, uint32 port, uint8 icon, RealmFlags realmflags, uint8 timezone, AccountTypes allowedSecurityLevel, float popu, const std::string& builds)
 {
     ///- Create new if not exist or update existed
     Realm& realm = m_realms[name];
@@ -124,10 +126,10 @@ void RealmList::UpdateRealm( uint32 ID, const std::string& name, const std::stri
 void RealmList::UpdateIfNeed()
 {
     // maybe disabled or updated recently
-    if(!m_UpdateInterval || m_NextUpdateTime > time(NULL))
+    if (!m_UpdateInterval || m_NextUpdateTime > time(nullptr))
         return;
 
-    m_NextUpdateTime = time(NULL) + m_UpdateInterval;
+    m_NextUpdateTime = time(nullptr) + m_UpdateInterval;
 
     // Clears Realm list
     m_realms.clear();
@@ -141,34 +143,36 @@ void RealmList::UpdateRealms(bool init)
     DETAIL_LOG("Updating Realm List...");
 
     ////                                               0   1     2        3     4     5           6         7                     8           9
-    QueryResult *result = LoginDatabase.Query( "SELECT id, name, address, port, icon, realmflags, timezone, allowedSecurityLevel, population, realmbuilds FROM realmlist WHERE (realmflags & 1) = 0 ORDER BY name" );
+    QueryResult* result = LoginDatabase.Query("SELECT id, name, address, port, icon, realmflags, timezone, allowedSecurityLevel, population, realmbuilds FROM realmlist WHERE (realmflags & 1) = 0 ORDER BY name");
 
     ///- Circle through results and add them to the realm map
-    if(result)
+    if (result)
     {
         do
         {
-            Field *fields = result->Fetch();
+            Field* fields = result->Fetch();
 
+            uint32 Id                  = fields[0].GetUInt32();
+            std::string name           = fields[1].GetCppString();
+            uint8 realmflags           = fields[5].GetUInt8();
             uint8 allowedSecurityLevel = fields[7].GetUInt8();
 
-            uint8 realmflags = fields[5].GetUInt8();
-
-            if (realmflags & ~(REALM_FLAG_OFFLINE|REALM_FLAG_NEW_PLAYERS|REALM_FLAG_RECOMMENDED|REALM_FLAG_SPECIFYBUILD))
+            if (realmflags & ~(REALM_FLAG_OFFLINE | REALM_FLAG_NEW_PLAYERS | REALM_FLAG_RECOMMENDED | REALM_FLAG_SPECIFYBUILD))
             {
-                sLog.outError("Realm allowed have only OFFLINE Mask 0x2), or NEWPLAYERS (mask 0x20), or RECOMENDED (mask 0x40), or SPECIFICBUILD (mask 0x04) flags in DB");
-                realmflags &= (REALM_FLAG_OFFLINE|REALM_FLAG_NEW_PLAYERS|REALM_FLAG_RECOMMENDED|REALM_FLAG_SPECIFYBUILD);
+                sLog.outError("Realm (id %u, name '%s') can only be flagged as OFFLINE (mask 0x02), NEWPLAYERS (mask 0x20), RECOMMENDED (mask 0x40), or SPECIFICBUILD (mask 0x04) in DB", Id, name.c_str());
+                realmflags &= (REALM_FLAG_OFFLINE | REALM_FLAG_NEW_PLAYERS | REALM_FLAG_RECOMMENDED | REALM_FLAG_SPECIFYBUILD);
             }
 
             UpdateRealm(
-                fields[0].GetUInt32(), fields[1].GetCppString(),fields[2].GetCppString(),fields[3].GetUInt32(),
+                Id, name, fields[2].GetCppString(), fields[3].GetUInt32(),
                 fields[4].GetUInt8(), RealmFlags(realmflags), fields[6].GetUInt8(),
                 (allowedSecurityLevel <= SEC_ADMINISTRATOR ? AccountTypes(allowedSecurityLevel) : SEC_ADMINISTRATOR),
                 fields[8].GetFloat(), fields[9].GetCppString());
 
-            if(init)
-                sLog.outString("Added realm \"%s\"", fields[1].GetString());
-        } while( result->NextRow() );
+            if (init)
+                sLog.outString("Added realm id %u, name '%s'",  Id, name.c_str());
+        }
+        while (result->NextRow());
         delete result;
     }
 }

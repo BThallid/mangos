@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,13 @@
 #define MANGOS_BAG_H
 
 #include "Common.h"
-#include "ItemPrototype.h"
 #include "Item.h"
+
+enum InventorySlot
+{
+    NULL_BAG = 0,
+    NULL_SLOT = 255
+};
 
 // Maximum 36 Slots ( (CONTAINER_END - CONTAINER_FIELD_SLOT_1)/2
 #define MAX_BAG_SIZE 36                                     // 2.0.12
@@ -33,20 +38,19 @@ class Bag : public Item
         Bag();
         ~Bag();
 
-        void AddToWorld();
-        void RemoveFromWorld();
+        void AddToWorld() override;
+        void RemoveFromWorld() override;
 
-        bool Create(uint32 guidlow, uint32 itemid, Player const* owner);
+        bool Create(uint32 guidlow, uint32 itemid, Player const* owner) override;
 
-        void Clear();
-        void StoreItem(uint8 slot, Item *pItem, bool update);
-        void RemoveItem(uint8 slot, bool update);
+        void StoreItem(uint8 slot, Item* pItem);
+        void RemoveItem(uint8 slot);
 
         Item* GetItemByPos(uint8 slot) const;
         Item* GetItemByEntry(uint32 item) const;
         Item* GetItemByLimitedCategory(uint32 limitedCategory) const;
-        uint32 GetItemCount(uint32 item, Item* eItem = NULL) const;
-        uint32 GetItemCountWithLimitCategory(uint32 limitCategory, Item* eItem = NULL) const;
+        uint32 GetItemCount(uint32 item, Item* eItem = nullptr) const;
+        uint32 GetItemCountWithLimitCategory(uint32 limitCategory, Item* eItem = nullptr) const;
 
         uint8 GetSlotByItemGUID(ObjectGuid guid) const;
         bool IsEmpty() const;
@@ -55,13 +59,13 @@ class Bag : public Item
 
         // DB operations
         // overwrite virtual Item::SaveToDB
-        void SaveToDB();
+        void SaveToDB() override;
         // overwrite virtual Item::LoadFromDB
-        bool LoadFromDB(uint32 guidLow, Field* fields, ObjectGuid ownerGuid = ObjectGuid());
+        bool LoadFromDB(uint32 guidLow, Field* fields, ObjectGuid ownerGuid = ObjectGuid()) override;
         // overwrite virtual Item::DeleteFromDB
-        void DeleteFromDB();
+        void DeleteFromDB() override;
 
-        void BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const;
+        void BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const override;
 
     protected:
 

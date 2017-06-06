@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,19 +20,17 @@
     \ingroup mangosd
 */
 
-#include "WorldSocketMgr.h"
 #include "Common.h"
 #include "World.h"
 #include "WorldRunnable.h"
 #include "Timer.h"
 #include "MapManager.h"
-#include "BattleGroundMgr.h"
 
 #include "Database/DatabaseEnv.h"
 
 #define WORLD_SLEEP_CONST 50
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "ServiceWin32.h"
 extern int m_ServiceStatus;
 #endif
@@ -41,7 +39,7 @@ extern int m_ServiceStatus;
 void WorldRunnable::run()
 {
     ///- Init new SQL thread for the world database
-    WorldDatabase.ThreadStart();                                // let thread do safe mySQL requests (one connection call enough)
+    WorldDatabase.ThreadStart();                            // let thread do safe mySQL requests (one connection call enough)
     sWorld.InitResultQueue();
 
     uint32 realCurrTime = 0;
@@ -57,37 +55,29 @@ void WorldRunnable::run()
 
         uint32 diff = WorldTimer::tick();
 
-        sWorld.Update( diff );
+        sWorld.Update(diff);
         realPrevTime = realCurrTime;
 
         // diff (D0) include time of previous sleep (d0) + tick time (t0)
         // we want that next d1 + t1 == WORLD_SLEEP_CONST
         // we can't know next t1 and then can use (t0 + d1) == WORLD_SLEEP_CONST requirement
         // d1 = WORLD_SLEEP_CONST - t0 = WORLD_SLEEP_CONST - (D0 - d0) = WORLD_SLEEP_CONST + d0 - D0
-        if (diff <= WORLD_SLEEP_CONST+prevSleepTime)
+        if (diff <= WORLD_SLEEP_CONST + prevSleepTime)
         {
-            prevSleepTime = WORLD_SLEEP_CONST+prevSleepTime-diff;
-            ACE_Based::Thread::Sleep(prevSleepTime);
+            prevSleepTime = WORLD_SLEEP_CONST + prevSleepTime - diff;
+            MaNGOS::Thread::Sleep(prevSleepTime);
         }
         else
             prevSleepTime = 0;
 
-        #ifdef WIN32
-            if (m_ServiceStatus == 0) World::StopNow(SHUTDOWN_EXIT_CODE);
-            while (m_ServiceStatus == 2) Sleep(1000);
-        #endif
+#ifdef _WIN32
+        if (m_ServiceStatus == 0) World::StopNow(SHUTDOWN_EXIT_CODE);
+        while (m_ServiceStatus == 2) Sleep(1000);
+#endif
     }
 
-    sWorld.KickAll();                                       // save and kick all players
-    sWorld.UpdateSessions( 1 );                             // real players unload required UpdateSessions call
-
-    // unload battleground templates before different singletons destroyed
-    sBattleGroundMgr.DeleteAllBattleGrounds();
-
-    sWorldSocketMgr->StopNetwork();
-
-    MapManager::Instance().UnloadAll();                     // unload all grids (including locked in memory)
+    sWorld.CleanupsBeforeStop();
 
     ///- End the database thread
-    WorldDatabase.ThreadEnd();                                  // free mySQL thread resources
+    WorldDatabase.ThreadEnd();                              // free mySQL thread resources
 }

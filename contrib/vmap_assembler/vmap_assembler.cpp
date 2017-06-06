@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 //=======================================================
 int main(int argc, char* argv[])
 {
-    if(argc != 3)
+    if (argc != 3)
     {
         std::cout << "usage: " << argv[0] << " <raw data dir> <vmap dest dir>" << std::endl;
         return 1;
@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 
     VMAP::TileAssembler* ta = new VMAP::TileAssembler(src, dest);
 
-    if(!ta->convertWorld2())
+    if (!ta->convertWorld2())
     {
         std::cout << "exit with errors" << std::endl;
         delete ta;

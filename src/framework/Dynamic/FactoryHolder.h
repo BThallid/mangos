@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,12 +22,12 @@
 #include "Platform/Define.h"
 #include "Utilities/TypeList.h"
 #include "ObjectRegistry.h"
-#include "Policies/SingletonImp.h"
+#include "Policies/Singleton.h"
 
 /** FactoryHolder holds a factory object of a specific type
  */
 template<class T, class Key = std::string>
-class MANGOS_DLL_DECL FactoryHolder
+class FactoryHolder
 {
     public:
         typedef ObjectRegistry<FactoryHolder<T, Key >, Key > FactoryHolderRegistry;
@@ -41,7 +41,7 @@ class MANGOS_DLL_DECL FactoryHolder
         void DeregisterSelf(void) { FactoryHolderRepository::Instance().RemoveItem(this, false); }
 
         /// Abstract Factory create method
-        virtual T* Create(void *data = NULL) const = 0;
+        virtual T* Create(void* data = nullptr) const = 0;
     private:
         Key i_key;
 };
@@ -55,6 +55,6 @@ class Permissible
 {
     public:
         virtual ~Permissible() {}
-        virtual int Permit(const T *) const = 0;
+        virtual int Permit(const T*) const = 0;
 };
 #endif

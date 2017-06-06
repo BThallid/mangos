@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,8 +42,8 @@ enum MangosStrings
     LANG_GMS_ON_SRV                     = 16,
     LANG_GMS_NOT_LOGGED                 = 17,
     LANG_YOU_IN_FLIGHT                  = 18,
-    //LANG_YOU_IN_BATTLEGROUND            = 19, not used
-    //LANG_TARGET_IN_FLIGHT               = 20, not used
+    // LANG_YOU_IN_BATTLEGROUND            = 19, not used
+    // LANG_TARGET_IN_FLIGHT               = 20, not used
     LANG_CHAR_IN_FLIGHT                 = 21,
     LANG_CHAR_NON_MOUNTED               = 22,
     LANG_YOU_IN_COMBAT                  = 23,
@@ -83,12 +83,12 @@ enum MangosStrings
     LANG_USING_WORLD_DB                 = 57,
     LANG_USING_SCRIPT_LIB               = 58,
     LANG_USING_EVENT_AI                 = 59,
-    //LANG_RA_BUSY                      = 60, not used
+    // LANG_RA_BUSY                      = 60, not used
     LANG_RA_USER                        = 61,
     LANG_RA_PASS                        = 62,
     LANG_GM_ACCEPTS_WHISPER             = 63,
     LANG_GM_NO_WHISPER                  = 64,
-    LANG_USING_SCRIPT_LIB_UNKNOWN       = 65,
+    //                                    65, not used
     LANG_USING_SCRIPT_LIB_NONE          = 66,
     // Room for more level 0              67-99 not used
 
@@ -119,7 +119,7 @@ enum MangosStrings
     LANG_YOU_CHANGE_ENERGY              = 122,
     LANG_YOURS_ENERGY_CHANGED           = 123,
 
-    LANG_CURRENT_ENERGY                 = 124,              //log
+    LANG_CURRENT_ENERGY                 = 124,              // log
     LANG_YOU_CHANGE_RAGE                = 125,
     LANG_YOURS_RAGE_CHANGED             = 126,
     LANG_YOU_CHANGE_LVL                 = 127,
@@ -204,39 +204,39 @@ enum MangosStrings
     LANG_RESETALL_SPELLS                = 218,
     LANG_RESETALL_TALENTS               = 219,
 
-    LANG_WAYPOINT_NOTFOUND              = 220,
-    LANG_WAYPOINT_NOTFOUNDLAST          = 221,
-    LANG_WAYPOINT_NOTFOUNDSEARCH        = 222,
-    LANG_WAYPOINT_NOTFOUNDDBPROBLEM     = 223,
-    LANG_WAYPOINT_CREATSELECTED         = 224,
-    LANG_WAYPOINT_CREATNOTFOUND         = 225,
-    LANG_WAYPOINT_VP_SELECT             = 226,
-    LANG_WAYPOINT_VP_NOTFOUND           = 227,
-    LANG_WAYPOINT_VP_NOTCREATED         = 228,
-    LANG_WAYPOINT_VP_ALLREMOVED         = 229,
-    LANG_WAYPOINT_NOTCREATED            = 230,
-    LANG_WAYPOINT_NOGUID                = 231,
-    LANG_WAYPOINT_NOWAYPOINTGIVEN       = 232,
-    LANG_WAYPOINT_ARGUMENTREQ           = 233,
-    LANG_WAYPOINT_ADDED                 = 234,
-    LANG_WAYPOINT_ADDED_NO              = 235,
-    LANG_WAYPOINT_CHANGED               = 236,
-    LANG_WAYPOINT_CHANGED_NO            = 237,
-    LANG_WAYPOINT_EXPORTED              = 238,
-    LANG_WAYPOINT_NOTHINGTOEXPORT       = 239,
-    LANG_WAYPOINT_IMPORTED              = 240,
-    LANG_WAYPOINT_REMOVED               = 241,
-    LANG_WAYPOINT_NOTREMOVED            = 242,
-    LANG_WAYPOINT_TOOFAR1               = 243,
-    LANG_WAYPOINT_TOOFAR2               = 244,
-    LANG_WAYPOINT_TOOFAR3               = 245,
-    LANG_WAYPOINT_INFO_TITLE            = 246,
-    LANG_WAYPOINT_INFO_WAITTIME         = 247,
-    LANG_WAYPOINT_INFO_MODEL            = 248,
-    LANG_WAYPOINT_INFO_EMOTE            = 249,
-    LANG_WAYPOINT_INFO_SPELL            = 250,
-    LANG_WAYPOINT_INFO_TEXT             = 251,
-    LANG_WAYPOINT_INFO_AISCRIPT         = 252,
+    LANG_WAYPOINT_NOTFOUND              = 220,              // Cannot find waypoint id %u for %s (in path %i, loaded from %s)
+    LANG_WAYPOINT_NOTFOUNDLAST          = 221,              // Last Waypoint not found for %s
+    LANG_WAYPOINT_NOTFOUNDPATH          = 222,              // %s has no path or path empty, path-id %i (loaded from %s)
+    LANG_WAYPOINT_NOTFOUNDDBPROBLEM     = 223,              // Creature (GUID: %u) No waypoints found - This is a MaNGOS db problem (single float).
+    LANG_WAYPOINT_NOTFOUND_NPC          = 224,              // Cannot access %s on map, maybe you are too far away from its spawn location
+    LANG_WAYPOINT_CREATNOTFOUND         = 225,              // Creature (GUID: %u) not found
+    LANG_WAYPOINT_VP_SELECT             = 226,              // You must select a visual waypoint.
+    LANG_WAYPOINT_VP_NOTFOUND           = 227,              // No visual waypoints found
+    LANG_WAYPOINT_VP_NOTCREATED         = 228,              // Could not create visual waypoint with creatureID: %d
+    LANG_WAYPOINT_VP_ALLREMOVED         = 229,              // All visual waypoints removed
+    LANG_WAYPOINT_NOTCREATED            = 230,              // Could not add waypoint %u to %s (pathId %i stored by %s)
+    LANG_WAYPOINT_NOGUID                = 231,              // No GUID provided.
+    LANG_WAYPOINT_NOWAYPOINTGIVEN       = 232,              // No waypoint number provided.
+    LANG_WAYPOINT_ARGUMENTREQ           = 233,              // Argument required for \'%s\'.
+    LANG_WAYPOINT_ADDED                 = 234,              // Added Waypoint %u to %s (PathId %i, path stored by %s)
+    LANG_WAYPOINT_ADDED_NO              = 235,              // UNUSED
+    LANG_WAYPOINT_CHANGED               = 236,              // Waypoint changed.
+    LANG_WAYPOINT_CHANGED_NO            = 237,              // Waypoint %s modified.
+    LANG_WAYPOINT_EXPORTED              = 238,              // WP export successfull.
+    LANG_WAYPOINT_NOTHINGTOEXPORT       = 239,              // No waypoints found inside the database.
+    LANG_WAYPOINT_IMPORTED              = 240,              // File imported.
+    LANG_WAYPOINT_REMOVED               = 241,              // Waypoint removed.
+    LANG_WAYPOINT_NOTREMOVED            = 242,              // UNUSED
+    LANG_WAYPOINT_TOOFAR1               = 243,              // UNUSED
+    LANG_WAYPOINT_TOOFAR2               = 244,              // UNUSED
+    LANG_WAYPOINT_TOOFAR3               = 245,              // UNUSED
+    LANG_WAYPOINT_INFO_TITLE            = 246,              // Waypoint %u for %s (from pathId %i, stored by %s)
+    LANG_WAYPOINT_INFO_WAITTIME         = 247,              // Waittime: %d
+    LANG_WAYPOINT_INFO_ORI              = 248,              // Orientation: %f
+    LANG_WAYPOINT_INFO_SCRIPTID         = 249,              // ScriptId: %u
+    LANG_WAYPOINT_INFO_UNK_SCRIPTID     = 250,              // ScriptID set to non-existing id %u, add it to DBScriptsEngine and reload the table.
+    LANG_WAYPOINT_INFO_TEXT             = 251,              // UNUSED
+    LANG_WAYPOINT_INFO_AISCRIPT         = 252,              // AIScriptName: %s
 
     LANG_RENAME_PLAYER                  = 253,
     LANG_RENAME_PLAYER_GUID             = 254,
@@ -501,8 +501,8 @@ enum MangosStrings
     LANG_REMOVEALL_COOLDOWN             = 492,
     LANG_REMOVE_COOLDOWN                = 493,
 
-    LANG_ADDITEM                        = 494,              //log
-    LANG_ADDITEMSET                     = 495,              //log
+    LANG_ADDITEM                        = 494,              // log
+    LANG_ADDITEMSET                     = 495,              // log
     LANG_REMOVEITEM                     = 496,
     LANG_ITEM_CANNOT_CREATE             = 497,
     LANG_INSERT_GUILD_NAME              = 498,
@@ -535,7 +535,7 @@ enum MangosStrings
 
     LANG_GAMEOBJECT_NOT_EXIST           = 522,
 
-    LANG_GAMEOBJECT_CURRENT             = 523,              //log
+    LANG_GAMEOBJECT_CURRENT             = 523,              // log
     LANG_GAMEOBJECT_DETAIL              = 524,
     LANG_GAMEOBJECT_ADD                 = 525,
 
@@ -572,8 +572,8 @@ enum MangosStrings
     LANG_YOURS_EXPLORE_SET_ALL          = 553,
     LANG_YOURS_EXPLORE_SET_NOTHING      = 554,
 
-    LANG_HOVER_ENABLED                  = 555,
-    LANG_HOVER_DISABLED                 = 556,
+    //                                    555,              // not used
+    //                                    556,              // not used
     LANG_YOURS_LEVEL_UP                 = 557,
     LANG_YOURS_LEVEL_DOWN               = 558,
     LANG_YOURS_LEVEL_PROGRESS_RESET     = 559,
@@ -583,17 +583,17 @@ enum MangosStrings
     //                                    562,              // not used
     //                                    563,              // not used
     LANG_TOO_BIG_INDEX                  = 564,
-    LANG_SET_UINT                       = 565,              //log
+    LANG_SET_UINT                       = 565,              // log
     LANG_SET_UINT_FIELD                 = 566,
-    LANG_SET_FLOAT                      = 567,              //log
+    LANG_SET_FLOAT                      = 567,              // log
     LANG_SET_FLOAT_FIELD                = 568,
-    LANG_GET_UINT                       = 569,              //log
+    LANG_GET_UINT                       = 569,              // log
     LANG_GET_UINT_FIELD                 = 570,
-    LANG_GET_FLOAT                      = 571,              //log
+    LANG_GET_FLOAT                      = 571,              // log
     LANG_GET_FLOAT_FIELD                = 572,
-    //                                    573,              //not used
-    //                                    574,              //not used
-    LANG_CHANGE_INT32                   = 575,              //log
+    //                                    573,              // not used
+    //                                    574,              // not used
+    LANG_CHANGE_INT32                   = 575,              // log
     LANG_CHANGE_INT32_FIELD             = 576,
 
     LANG_INVISIBLE_INVISIBLE            = 577,
@@ -711,8 +711,8 @@ enum MangosStrings
     LANG_YOUR_BG_LEVEL_REQ_ERROR        = 715,
 //                                      = 716, not used
     LANG_BG_STARTED_ANNOUNCE_WORLD      = 717,
-    LANG_ARENA_QUEUE_ANNOUNCE_WORLD_JOIN= 718,
-    LANG_ARENA_QUEUE_ANNOUNCE_WORLD_EXIT= 719,
+    LANG_ARENA_QUEUE_ANNOUNCE_WORLD_JOIN = 718,
+    LANG_ARENA_QUEUE_ANNOUNCE_WORLD_EXIT = 719,
 
     LANG_BG_GROUP_TOO_LARGE             = 720,              // "Your group is too large for this battleground. Please regroup to join."
     LANG_ARENA_GROUP_TOO_LARGE          = 721,              // "Your group is too large for this arena. Please regroup to join."
@@ -788,9 +788,7 @@ enum MangosStrings
     LANG_BG_AV_H_NEAR_LOSE              = 788,
     LANG_BG_AV_H_GENERAL_DEAD           = 789,
     LANG_BG_AV_A_GENERAL_DEAD           = 790,
-
-
-    // Room for batleground/arena strings 791-799 not used
+    // Room for battleground/arena strings 791-799 not used
 
     // in game strings
     //                                  = 800, not used
@@ -809,7 +807,10 @@ enum MangosStrings
     LANG_GUILD_VETERAN                  = 813,
     LANG_GUILD_MEMBER                   = 814,
     LANG_GUILD_INITIATE                 = 815,
-    // Room for in-game strings           816-999 not used
+    LANG_FAIL_ENTER_SPECTRAL_REALM      = 816,
+    LANG_NO_FLY_ZONE                    = 817,
+    LANG_TELEREQ_QUEST_BLACK_MORASS     = 818,
+    // Room for in-game strings           819-999 not used
 
     // Level 4 (CLI only commands)
     LANG_COMMAND_EXIT                   = 1000,
@@ -898,13 +899,13 @@ enum MangosStrings
     LANG_NPC_GO_INFO_EVENT_STRING       = 1150,
     LANG_NPC_GO_INFO_POOL_EVENT_STRING  = 1151,
     LANG_COMMAND_ITEM_USABLE            = 1152,
-    LANG_GET_BITSTR                     = 1153,             //log
+    LANG_GET_BITSTR                     = 1153,             // log
     LANG_GET_BITSTR_FIELD               = 1154,
-    LANG_GET_HEX                        = 1155,             //log
+    LANG_GET_HEX                        = 1155,             // log
     LANG_GET_HEX_FIELD                  = 1156,
-    LANG_CHANGE_HEX                     = 1157,             //log
+    LANG_CHANGE_HEX                     = 1157,             // log
     LANG_CHANGE_HEX_FIELD               = 1158,
-    LANG_CHANGE_FLOAT                   = 1159,             //log
+    LANG_CHANGE_FLOAT                   = 1159,             // log
     LANG_CHANGE_FLOAT_FIELD             = 1160,
     LANG_COMMAND_ACHIEVEMENT_CRITERIA   = 1161,
     LANG_COUNTER                        = 1162,
@@ -938,7 +939,10 @@ enum MangosStrings
     LANG_AHBOT_ITEMS_AMOUNT             = 1190,
     LANG_AHBOT_ITEMS_RATIO              = 1191,
     LANG_MOVEGENS_EFFECT                = 1192,
-    // Room for more level 3              1193-1199 not used
+    LANG_GEARSCORE                      = 1193,
+    LANG_COMMAND_GO_STATUS              = 1194,
+    LANG_COMMAND_GO_STATUS_DOOR         = 1195,
+    // Room for more level 3              1196-1199 not used
 
     // Debug commands
     LANG_CINEMATIC_NOT_EXIST            = 1200,
@@ -964,17 +968,62 @@ enum MangosStrings
     LANG_NPC_EVENTAI_PHASE              = 1506,
     LANG_NPC_EVENTAI_MOVE               = 1507,
     LANG_NPC_EVENTAI_COMBAT             = 1508,
-    // Room for more Level 2              1509-1599 not used
+    LANG_POOL_ENTRY_LOWER_MAX_POOL      = 1509,
+    // Room for more Level 2              1510-1599 not used
 
-    // FREE IDS                           1600-9999
+    // Outdoor PvP
+    LANG_OPVP_EP_CAPTURE_NPT_H          = 1600,
+    LANG_OPVP_EP_CAPTURE_NPT_A          = 1601,
+    LANG_OPVP_EP_CAPTURE_CGT_H          = 1602,
+    LANG_OPVP_EP_CAPTURE_CGT_A          = 1603,
+    LANG_OPVP_EP_CAPTURE_EWT_H          = 1604,
+    LANG_OPVP_EP_CAPTURE_EWT_A          = 1605,
+    LANG_OPVP_EP_CAPTURE_PWT_H          = 1606,
+    LANG_OPVP_EP_CAPTURE_PWT_A          = 1607,
 
-    // Use for not-in-offcial-sources patches
+    LANG_OPVP_HP_CAPTURE_OVERLOOK_H     = 1608,
+    LANG_OPVP_HP_CAPTURE_OVERLOOK_A     = 1609,
+    LANG_OPVP_HP_CAPTURE_STADIUM_H      = 1610,
+    LANG_OPVP_HP_CAPTURE_STADIUM_A      = 1611,
+    LANG_OPVP_HP_CAPTURE_BROKENHILL_H   = 1612,
+    LANG_OPVP_HP_CAPTURE_BROKENHILL_A   = 1613,
+
+    LANG_OPVP_ZM_CAPTURE_EAST_BEACON_H  = 1614,
+    LANG_OPVP_ZM_CAPTURE_EAST_BEACON_A  = 1615,
+    LANG_OPVP_ZM_CAPTURE_WEST_BEACON_H  = 1616,
+    LANG_OPVP_ZM_CAPTURE_WEST_BEACON_A  = 1617,
+    LANG_OPVP_ZM_CAPTURE_BOTH_BEACONS_H = 1618,
+    LANG_OPVP_ZM_CAPTURE_BOTH_BEACONS_A = 1619,
+    LANG_OPVP_ZM_SPAWN_FIELD_SCOUT_H    = 1620,
+    LANG_OPVP_ZM_SPAWN_FIELD_SCOUT_A    = 1621,
+    LANG_OPVP_ZM_CAPTURE_GRAVEYARD_H    = 1622,
+    LANG_OPVP_ZM_CAPTURE_GRAVEYARD_A    = 1623,
+
+    LANG_OPVP_TF_CAPTURE_TOWER_H        = 1624,
+    LANG_OPVP_TF_CAPTURE_TOWER_A        = 1625,
+    LANG_OPVP_TF_LOSE_TOWER_H           = 1626,
+    LANG_OPVP_TF_LOSE_TOWER_A           = 1627,
+    LANG_OPVP_TF_CAPTURE_ALL_TOWERS_H   = 1628,
+    LANG_OPVP_TF_CAPTURE_ALL_TOWERS_A   = 1629,
+
+    LANG_OPVP_NA_PROGRESS_H             = 1630,
+    LANG_OPVP_NA_PROGRESS_A             = 1631,
+    LANG_OPVP_NA_CAPTURE_H              = 1632,
+    LANG_OPVP_NA_CAPTURE_A              = 1633,
+    LANG_OPVP_NA_DEFENSELESS            = 1634,
+
+    LANG_OPVP_SI_CAPTURE_H              = 1635,
+    LANG_OPVP_SI_CAPTURE_A              = 1636,
+
+    // FREE IDS                           1700-9999
+
+    // Use for not-in-official-sources patches
     //                                    10000-10999
 
     // Use for custom patches             11000-11999
 
     // NOT RESERVED IDS                   12000-1999999999
-    // `db_script_string` table index     2000000000-2000009999 (MIN_DB_SCRIPT_STRING_ID-MAX_DB_SCRIPT_STRING_ID)
-    // For other tables maybe             2000010000-2147483647 (max index)
+    // `db_script_string` table index     2000000000-2000999999 (MIN_DB_SCRIPT_STRING_ID-MAX_DB_SCRIPT_STRING_ID)
+    // For other tables maybe             2001000000-2147483647 (max index)
 };
 #endif

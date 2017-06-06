@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,28 +20,25 @@
 #define MANGOS_CONFUSEDMOVEMENTGENERATOR_H
 
 #include "MovementGenerator.h"
-#include "Timer.h"
-
-#define MAX_CONF_WAYPOINTS 24
 
 template<class T>
-class MANGOS_DLL_SPEC ConfusedMovementGenerator
-: public MovementGeneratorMedium< T, ConfusedMovementGenerator<T> >
+class ConfusedMovementGenerator
+    : public MovementGeneratorMedium< T, ConfusedMovementGenerator<T> >
 {
     public:
-        explicit ConfusedMovementGenerator() : i_nextMoveTime(0) {}
+        explicit ConfusedMovementGenerator() : i_nextMoveTime(0), i_x(0), i_y(0), i_z(0)
+        {}
 
-        void Initialize(T &);
-        void Finalize(T &);
-        void Interrupt(T &);
-        void Reset(T &);
-        bool Update(T &, const uint32 &);
+        void Initialize(T&);
+        void Finalize(T&) const;
+        void Interrupt(T&);
+        void Reset(T&);
+        bool Update(T&, const uint32&);
 
         MovementGeneratorType GetMovementGeneratorType() const { return CONFUSED_MOTION_TYPE; }
+
     private:
-        void _InitSpecific(T &, bool &, bool &);
         TimeTracker i_nextMoveTime;
-        float i_waypoints[MAX_CONF_WAYPOINTS+1][3];
-        uint32 i_nextMove;
+        float i_x, i_y, i_z;
 };
 #endif

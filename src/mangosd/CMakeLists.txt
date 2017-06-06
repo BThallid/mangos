@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2005-2011 MaNGOS project <http://getmangos.com/>
+# This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,12 +17,28 @@
 #
 
 set(EXECUTABLE_NAME mangosd)
-file(GLOB_RECURSE EXECUTABLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cpp *.h)
+
+set(EXECUTABLE_SRCS
+    CliRunnable.cpp
+    CliRunnable.h
+    MaNGOSsoap.cpp
+    MaNGOSsoap.h
+    Main.cpp
+    Master.cpp
+    Master.h
+    RASocket.cpp
+    RASocket.h
+    WorldRunnable.cpp
+    WorldRunnable.h
+    soapC.cpp
+    soapH.h
+    soapServer.cpp
+    soapStub.h
+   )
 
 if(WIN32)
-  list(APPEND EXECUTABLE_SRCS
-    mangosd.rc
-  )
+  # add resource file to windows build
+  set(EXECUTABLE_SRCS ${EXECUTABLE_SRCS} mangosd.rc)
 endif()
 
 include_directories(
@@ -32,20 +48,20 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/src/game
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/shared
-  ${ACE_INCLUDE_DIR}
-  ${MYSQL_INCLUDE_DIR}
   ${OPENSSL_INCLUDE_DIR}
 )
+
+if(POSTGRESQL)
+  include_directories(${PGSQL_INCLUDE_DIR})
+else()
+  include_directories(${MYSQL_INCLUDE_DIR})
+endif()
 
 add_executable(${EXECUTABLE_NAME}
   ${EXECUTABLE_SRCS}
 )
 
 add_dependencies(${EXECUTABLE_NAME} revision.h)
-if(NOT ACE_USE_EXTERNAL)
-  add_dependencies(${EXECUTABLE_NAME} ACE_Project)
-# add_dependencies(${EXECUTABLE_NAME} ace)
-endif()
 
 target_link_libraries(${EXECUTABLE_NAME}
   game
@@ -53,7 +69,7 @@ target_link_libraries(${EXECUTABLE_NAME}
   framework
   g3dlite
   gsoap
-  ${ACE_LIBRARIES}
+  ${Boost_LIBRARIES}
 )
 
 if(WIN32)
@@ -81,11 +97,11 @@ endif()
 set(EXECUTABLE_LINK_FLAGS "")
 
 if(UNIX)
-  set(EXECUTABLE_LINK_FLAGS "-pthread ${EXECUTABLE_LINK_FLAGS} -rdynamic")
-endif()
-
-if(APPLE)
-  set(EXECUTABLE_LINK_FLAGS "-framework Carbon ${EXECUTABLE_LINK_FLAGS}")
+  if (APPLE)
+    set(EXECUTABLE_LINK_FLAGS "-pthread -framework Carbon")
+  else()
+    set(EXECUTABLE_LINK_FLAGS "-pthread -rdynamic")
+  endif()
 endif()
 
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES LINK_FLAGS

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,12 +19,10 @@
 #ifndef THREADING_H
 #define THREADING_H
 
-#include <ace/Thread.h>
-#include <ace/TSS_T.h>
-#include "ace/Atomic_Op.h"
-#include <assert.h>
+#include <thread>
+#include <atomic>
 
-namespace ACE_Based
+namespace MaNGOS
 {
     class Runnable
     {
@@ -35,34 +33,22 @@ namespace ACE_Based
             void incReference() { ++m_refs; }
             void decReference()
             {
-                if(!--m_refs)
+                if (!--m_refs)
                     delete this;
             }
         private:
-            ACE_Atomic_Op<ACE_Thread_Mutex, long> m_refs;
+            std::atomic_long m_refs;
     };
 
     enum Priority
     {
-        Idle,
-        Lowest,
-        Low,
-        Normal,
-        High,
-        Highest,
-        Realtime,
-    };
-
-#define MAXPRIORITYNUM (Realtime + 1)
-
-    class ThreadPriority
-    {
-        public:
-            ThreadPriority();
-            int getPriority(Priority p) const;
-
-        private:
-            int m_priority[MAXPRIORITYNUM];
+        Priority_Idle,
+        Priority_Lowest,
+        Priority_Low,
+        Priority_Normal,
+        Priority_High,
+        Priority_Highest,
+        Priority_Realtime,
     };
 
     class Thread
@@ -72,35 +58,23 @@ namespace ACE_Based
             explicit Thread(Runnable* instance);
             ~Thread();
 
-            bool start();
             bool wait();
             void destroy();
-
-            void suspend();
-            void resume();
 
             void setPriority(Priority type);
 
             static void Sleep(unsigned long msecs);
-            static ACE_thread_t currentId();
-            static ACE_hthread_t currentHandle();
-            static Thread * current();
+            static std::thread::id currentId();
 
         private:
             Thread(const Thread&);
             Thread& operator=(const Thread&);
 
-            static ACE_THR_FUNC_RETURN ThreadTask(void * param);
+            static void ThreadTask(void* param);
 
-            ACE_thread_t m_iThreadId;
-            ACE_hthread_t m_hThreadHandle;
-            Runnable * m_task;
-
-            typedef ACE_TSS<Thread> ThreadStorage;
-            //global object - container for Thread class representation of every thread
-            static ThreadStorage m_ThreadStorage;
-            //use this object to determine current OS thread priority values mapped to enum Priority{}
-            static ThreadPriority m_TpEnum;
+            Runnable* const m_task;
+            std::thread::id m_iThreadId;
+            std::thread m_ThreadImp;
     };
 }
 #endif

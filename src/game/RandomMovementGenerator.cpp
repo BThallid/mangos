@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
  */
 
 #include "Creature.h"
-#include "MapManager.h"
 #include "RandomMovementGenerator.h"
 #include "Map.h"
 #include "Util.h"
@@ -25,118 +24,77 @@
 #include "movement/MoveSpline.h"
 
 template<>
-void
-RandomMovementGenerator<Creature>::_setRandomLocation(Creature &creature)
+RandomMovementGenerator<Creature>::RandomMovementGenerator(const Creature& creature): i_verticalZ(0)
 {
-    float respX, respY, respZ, respO, currZ, destX, destY, destZ, wander_distance, travelDistZ;
-
+    float respX, respY, respZ, respO, wander_distance;
     creature.GetRespawnCoord(respX, respY, respZ, &respO, &wander_distance);
-
-    currZ = creature.GetPositionZ();
-    TerrainInfo const* map = creature.GetTerrain();
-
-    // For 2D/3D system selection
-    //bool is_land_ok  = creature.CanWalk();                // not used?
-    //bool is_water_ok = creature.CanSwim();                // not used?
-    bool is_air_ok = creature.CanFly();
-
-    const float angle = rand_norm_f() * (M_PI_F*2.0f);
-    const float range = rand_norm_f() * wander_distance;
-    const float distanceX = range * cos(angle);
-    const float distanceY = range * sin(angle);
-
-    destX = respX + distanceX;
-    destY = respY + distanceY;
-
-    // prevent invalid coordinates generation
-    MaNGOS::NormalizeMapCoord(destX);
-    MaNGOS::NormalizeMapCoord(destY);
-
-    travelDistZ = distanceX*distanceX + distanceY*distanceY;
-
-    if (is_air_ok)                                          // 3D system above ground and above water (flying mode)
-    {
-        // Limit height change
-        const float distanceZ = rand_norm_f() * sqrtf(travelDistZ)/2.0f;
-        destZ = respZ + distanceZ;
-        float levelZ = map->GetWaterOrGroundLevel(destX, destY, destZ-2.0f);
-
-        // Problem here, we must fly above the ground and water, not under. Let's try on next tick
-        if (levelZ >= destZ)
-            return;
-    }
-    //else if (is_water_ok)                                 // 3D system under water and above ground (swimming mode)
-    else                                                    // 2D only
-    {
-        // 10.0 is the max that vmap high can check (MAX_CAN_FALL_DISTANCE)
-        travelDistZ = travelDistZ >= 100.0f ? 10.0f : sqrtf(travelDistZ);
-
-        // The fastest way to get an accurate result 90% of the time.
-        // Better result can be obtained like 99% accuracy with a ray light, but the cost is too high and the code is too long.
-        destZ = map->GetHeight(destX, destY, respZ+travelDistZ-2.0f, false);
-
-        if (fabs(destZ - respZ) > travelDistZ)              // Map check
-        {
-            // Vmap Horizontal or above
-            destZ = map->GetHeight(destX, destY, respZ - 2.0f, true);
-
-            if (fabs(destZ - respZ) > travelDistZ)
-            {
-                // Vmap Higher
-                destZ = map->GetHeight(destX, destY, respZ+travelDistZ-2.0f, true);
-
-                // let's forget this bad coords where a z cannot be find and retry at next tick
-                if (fabs(destZ - respZ) > travelDistZ)
-                    return;
-            }
-        }
-    }
-
-    if (is_air_ok)
-        i_nextMoveTime.Reset(0);
-    else
-        i_nextMoveTime.Reset(urand(500, 10000));
-
-    creature.addUnitState(UNIT_STAT_ROAMING_MOVE);
-
-    Movement::MoveSplineInit init(creature);
-    init.MoveTo(destX, destY, destZ);
-    init.SetWalk(true);
-    init.Launch();
+    i_nextMoveTime = ShortTimeTracker(0);
+    i_x = respX;
+    i_y = respY;
+    i_z = respZ;
+    i_radius = wander_distance;
 }
 
 template<>
-void RandomMovementGenerator<Creature>::Initialize(Creature &creature)
+void RandomMovementGenerator<Creature>::_setRandomLocation(Creature& creature)
 {
-    if (!creature.isAlive())
+    float destX = i_x;
+    float destY = i_y;
+    float destZ = i_z;
+
+    creature.addUnitState(UNIT_STAT_ROAMING_MOVE);
+
+    // check if new random position is assigned, GetReachableRandomPosition may fail
+    if (creature.GetMap()->GetReachableRandomPosition(&creature, destX, destY, destZ, i_radius))
+    {
+        Movement::MoveSplineInit init(creature);
+        init.MoveTo(destX, destY, destZ, true);
+        init.SetWalk(true);
+        init.Launch();
+        if (roll_chance_i(MOVEMENT_RANDOM_MMGEN_CHANCE_NO_BREAK))
+            i_nextMoveTime.Reset(50);
+        else
+            i_nextMoveTime.Reset(urand(3000, 10000));       // Keep a short wait time
+    }
+    else
+        i_nextMoveTime.Reset(50);                           // Retry later
+    return;
+}
+
+template<>
+void RandomMovementGenerator<Creature>::Initialize(Creature& creature)
+{
+    creature.addUnitState(UNIT_STAT_ROAMING);               // _MOVE set in _setRandomLocation
+
+    if (!creature.isAlive() || creature.hasUnitState(UNIT_STAT_NOT_MOVE))
         return;
 
-    creature.addUnitState(UNIT_STAT_ROAMING|UNIT_STAT_ROAMING_MOVE);
     _setRandomLocation(creature);
 }
 
 template<>
-void RandomMovementGenerator<Creature>::Reset(Creature &creature)
+void RandomMovementGenerator<Creature>::Reset(Creature& creature)
 {
     Initialize(creature);
 }
 
 template<>
-void RandomMovementGenerator<Creature>::Interrupt(Creature &creature)
+void RandomMovementGenerator<Creature>::Interrupt(Creature& creature)
 {
-    creature.clearUnitState(UNIT_STAT_ROAMING|UNIT_STAT_ROAMING_MOVE);
-    creature.SetWalk(false);
+    creature.InterruptMoving();
+    creature.clearUnitState(UNIT_STAT_ROAMING | UNIT_STAT_ROAMING_MOVE);
+    creature.SetWalk(!creature.hasUnitState(UNIT_STAT_RUNNING_STATE), false);
 }
 
 template<>
-void RandomMovementGenerator<Creature>::Finalize(Creature &creature)
+void RandomMovementGenerator<Creature>::Finalize(Creature& creature)
 {
-    creature.clearUnitState(UNIT_STAT_ROAMING|UNIT_STAT_ROAMING_MOVE);
-    creature.SetWalk(false);
+    creature.clearUnitState(UNIT_STAT_ROAMING | UNIT_STAT_ROAMING_MOVE);
+    creature.SetWalk(!creature.hasUnitState(UNIT_STAT_RUNNING_STATE), false);
 }
 
 template<>
-bool RandomMovementGenerator<Creature>::Update(Creature &creature, const uint32 &diff)
+bool RandomMovementGenerator<Creature>::Update(Creature& creature, const uint32& diff)
 {
     if (creature.hasUnitState(UNIT_STAT_NOT_MOVE))
     {
@@ -151,18 +109,5 @@ bool RandomMovementGenerator<Creature>::Update(Creature &creature, const uint32 
         if (i_nextMoveTime.Passed())
             _setRandomLocation(creature);
     }
-    return true;
-}
-
-template<>
-bool RandomMovementGenerator<Creature>::GetResetPosition(Creature& c, float& x, float& y, float& z)
-{
-    float radius;
-    c.GetRespawnCoord(x, y, z, NULL, &radius);
-
-    // use current if in range
-    if (c.IsWithinDist2d(x,y,radius))
-        c.GetPosition(x,y,z);
-
     return true;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,6 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Log.h"
-#include "Opcodes.h"
-#include "UpdateData.h"
 #include "Player.h"
 
 void WorldSession::HandleDuelAcceptedOpcode(WorldPacket& recvPacket)
@@ -29,51 +27,67 @@ void WorldSession::HandleDuelAcceptedOpcode(WorldPacket& recvPacket)
     ObjectGuid guid;
     recvPacket >> guid;
 
-    if(!GetPlayer()->duel)                                  // ignore accept from duel-sender
+    // Check for own duel info first
+    Player* self = GetPlayer();
+    if (!self || !self->duel)
         return;
 
-    Player *pl       = GetPlayer();
-    Player *plTarget = pl->duel->opponent;
-
-    if(pl == pl->duel->initiator || !plTarget || pl == plTarget || pl->duel->startTime != 0 || plTarget->duel->startTime != 0)
+    // Check if we are not accepting our own duel request
+    Player* initiator = self->duel->initiator;
+    if (!initiator || self == initiator)
         return;
 
-    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "WORLD: received CMSG_DUEL_ACCEPTED" );
-    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "Player 1 is: %u (%s)", pl->GetGUIDLow(), pl->GetName());
-    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "Player 2 is: %u (%s)", plTarget->GetGUIDLow(), plTarget->GetName());
+    // Check for opponent
+    Player* opponent = self->duel->opponent;
+    if (!opponent || self == opponent)
+        return;
 
-    time_t now = time(NULL);
-    pl->duel->startTimer = now;
-    plTarget->duel->startTimer = now;
+    // Check if duel is starting
+    if (self->duel->startTimer != 0 || opponent->duel->startTimer != 0)
+        return;
 
-    pl->SendDuelCountdown(3000);
-    plTarget->SendDuelCountdown(3000);
+    // Check if duel is in progress
+    if (self->duel->startTime != 0 || opponent->duel->startTime != 0)
+        return;
+
+    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "WORLD: received CMSG_DUEL_ACCEPTED");
+    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "Player 1 is: %u (%s)", self->GetGUIDLow(), self->GetName());
+    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "Player 2 is: %u (%s)", opponent->GetGUIDLow(), opponent->GetName());
+
+    time_t now = time(nullptr);
+    self->duel->startTimer = now;
+    opponent->duel->startTimer = now;
+
+    self->SendDuelCountdown(3000);
+    opponent->SendDuelCountdown(3000);
 }
 
 void WorldSession::HandleDuelCancelledOpcode(WorldPacket& recvPacket)
 {
-    //DEBUG_LOG( "WORLD: received CMSG_DUEL_CANCELLED" );
-
-    // no duel requested
-    if(!GetPlayer()->duel)
-        return;
-
-    // player surrendered in a duel using /forfeit
-    if(GetPlayer()->duel->startTime != 0)
-    {
-        GetPlayer()->CombatStopWithPets(true);
-        if(GetPlayer()->duel->opponent)
-            GetPlayer()->duel->opponent->CombatStopWithPets(true);
-
-        GetPlayer()->CastSpell(GetPlayer(), 7267, true);    // beg
-        GetPlayer()->DuelComplete(DUEL_WON);
-        return;
-    }
-
-    // player either discarded the duel using the "discard button"
-    // or used "/forfeit" before countdown reached 0
     ObjectGuid guid;
     recvPacket >> guid;
 
-    GetPlayer()->DuelComplete(DUEL_INTERUPTED);
+    // Check for own duel info first
+    Player* self = GetPlayer();
+    if (!self || !self->duel)
+        return;
+
+    // Check for opponent
+    Player* opponent = self->duel->opponent;
+    if (!opponent)
+        return;
+
+    DEBUG_LOG("WORLD: Received opcode CMSG_DUEL_CANCELLED");
+
+    // If duel is in progress, then player surrendered in a duel using /forfeit
+    if (self->duel->startTime != 0)
+    {
+        self->CombatStopWithPets(true);
+        opponent->CombatStopWithPets(true);
+        self->CastSpell(self, 7267, TRIGGERED_OLD_TRIGGERED);    // beg
+        self->DuelComplete(DUEL_WON);
+        return;
+    }
+    // Player either discarded the duel using the "discard button" or used "/forfeit" before countdown reached 0
+    self->DuelComplete(DUEL_INTERRUPTED);
 }

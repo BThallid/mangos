@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 #if !defined(QUERYRESULTPOSTGRE_H)
 #define QUERYRESULTPOSTGRE_H
 
-#ifdef WIN32
+#ifdef _WIN32
 #define FD_SETSIZE 1024
 #include <winsock2.h>
 #include <postgre/libpq-fe.h>
@@ -74,17 +74,17 @@
 class QueryResultPostgre : public QueryResult
 {
     public:
-        QueryResultPostgre(PGresult *result, uint64 rowCount, uint32 fieldCount);
+        QueryResultPostgre(PGresult* result, uint64 rowCount, uint32 fieldCount);
 
         ~QueryResultPostgre();
 
-        bool NextRow();
+        bool NextRow() override;
 
     private:
         enum Field::DataTypes ConvertNativeType(Oid pOid) const;
-        void EndQuery();
+        void EndQuery() override;
 
-        PGresult *mResult;
+        PGresult* mResult;
         uint32 mTableIndex;
 };
 #endif

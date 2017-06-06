@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,13 +28,10 @@ class AuthCrypt
 {
     public:
         AuthCrypt();
-        ~AuthCrypt();
 
-        void Init(BigNumber *K);
-        void DecryptRecv(uint8 *, size_t);
-        void EncryptSend(uint8 *, size_t);
-
-        bool IsInitialized() { return _initialized; }
+        void Init(BigNumber* K);
+        void DecryptRecv(uint8*, size_t);
+        void EncryptSend(uint8*, size_t);
 
     private:
         SARC4 _clientDecrypt;

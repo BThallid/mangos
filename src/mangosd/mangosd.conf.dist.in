@@ -3,7 +3,7 @@
 #####################################
 
 [MangosdConf]
-ConfVersion=2010100901
+ConfVersion=2016101401
 
 ###################################################################################################################
 # CONNECTIONS AND DIRECTORIES
@@ -37,13 +37,13 @@ ConfVersion=2010100901
 #                    hostname;port;username;password;database
 #                    .;/path/to/unix_socket/DIRECTORY or . for default path;username;password;database - use Unix sockets at Unix/Linux
 #
-#	LoginDatabaseConnections
-#	WorldDatabaseConnections
-#	CharacterDatabaseConnections
-#		 Amount of connections to database which will be used for SELECT queries. Maximum 16 connections per database.
-#		 Please, note, for data consistency only one connection for each database is used for transactions and async SELECTs.
-#		 So formula to find out how many connections will be established: X = ¹_connections + 1
-#		 Default: 1 connection for SELECT statements
+#   LoginDatabaseConnections
+#   WorldDatabaseConnections
+#   CharacterDatabaseConnections
+#        Amount of connections to database which will be used for SELECT queries. Maximum 16 connections per database.
+#        Please, note, for data consistency only one connection for each database is used for transactions and async SELECTs.
+#        So formula to find out how many connections will be established: X = #_connections + 1
+#        Default: 1 connection for SELECT statements
 #
 #    MaxPingTime
 #        Settings for maximum database-ping interval (minutes between pings)
@@ -71,6 +71,9 @@ CharacterDatabaseConnections = 1
 MaxPingTime = 30
 WorldServerPort = 8085
 BindIP = "0.0.0.0"
+
+# Log File for SD2-Errors
+SD2ErrorLogFile = "SD2Errors.log"
 
 ###################################################################################################################
 # PERFORMANCE SETINGS
@@ -112,6 +115,12 @@ BindIP = "0.0.0.0"
 #        Default: 1 (unload grids)
 #                 0 (do not unload grids)
 #
+#    LoadAllGridsOnMaps
+#        Load grids of maps at server startup (if you have lot memory you can try it to have a living world always loaded)
+#        This also allow ALL creatures on the given maps to update their grid without any player around.
+#        Default: "" (don't load all grids at startup)
+#                 "mapId1[,mapId2[..]]" (DO load all grids on the given maps- Experimental and very resource consumming)
+#
 #    GridCleanUpDelay
 #        Grid clean up delay (in milliseconds)
 #        Default: 300000 (5 min)
@@ -142,8 +151,8 @@ BindIP = "0.0.0.0"
 #    vmap.enableHeight
 #        Enable/Disable VMaps support for line of sight and height calculation
 #        You need to extract the VMaps in order to enable those options
-#        Default: 0 (disable)
-#                 1 (enable)
+#        Default: 1 (enable)
+#                 0 (disable)
 #
 #    vmap.ignoreSpellIds
 #        These spells are ignored for LoS calculation
@@ -168,6 +177,25 @@ BindIP = "0.0.0.0"
 #        More distance let have better performence, less distance let have more sensitive reaction at target move.
 #        Default: 1.5
 #
+#    mmap.enabled
+#        Enable/Disable pathfinding using mmaps
+#        Default: 1 (enable)
+#                 0 (disable)
+#
+#    mmap.ignoreMapIds
+#        Disable mmap pathfinding on the listed maps.
+#        List of map ids with delimiter ','
+#
+#    PathFinder.OptimizePath
+#        Use or not path finder path optimization (cut calculated points).
+#                 0  (disable)
+#        Default: 1  (enable)
+#
+#    PathFinder.NormalizeZ
+#        Correct calculated path points Z (height). Increase CPU usage, but fix Z accuracy.
+#        Default: 0  (disable)
+#                 1  (enable)
+#
 #    UpdateUptimeInterval
 #        Update realm uptime period in minutes (for save data in 'uptime' table). Must be > 0
 #        Default: 10 (minutes)
@@ -188,6 +216,11 @@ BindIP = "0.0.0.0"
 #        Default: 1 (Enable)
 #                 0 (Disabled)
 #
+#
+#    MaxWhoListReturns
+#        Set the max number of players returned in the /who list and interface (0 means unlimited)
+#        Default:     49 - (stable)
+#
 ###################################################################################################################
 
 UseProcessors = 0
@@ -197,6 +230,7 @@ PlayerLimit = 100
 SaveRespawnTimeImmediately = 1
 MaxOverspeedPings = 2
 GridUnload = 1
+LoadAllGridsOnMaps = ""
 GridCleanUpDelay = 300000
 MapUpdateInterval = 100
 ChangeWeatherInterval = 600000
@@ -209,10 +243,15 @@ vmap.ignoreSpellIds = "7720"
 vmap.enableIndoorCheck = 1
 DetectPosCollision = 1
 TargetPosRecalculateRange = 1.5
+mmap.enabled = 1
+mmap.ignoreMapIds = ""
+PathFinder.OptimizePath = 1
+PathFinder.NormalizeZ = 0
 UpdateUptimeInterval = 10
 MaxCoreStuckTime = 0
 AddonChannel = 1
 CleanCharacterDB = 1
+MaxWhoListReturns = 49
 
 ###################################################################################################################
 # SERVER LOGGING
@@ -257,16 +296,20 @@ CleanCharacterDB = 1
 #    LogFilter_AchievementUpdates
 #    LogFilter_CreatureMoves
 #    LogFilter_TransportMoves
+#    LogFilter_PlayerMoves
 #    LogFilter_VisibilityChanges
 #    LogFilter_Weather
 #    LogFilter_DbStrictedCheck
-#        Log filters (active by default)
+#    LogFilter_SQLText
+#    LogFilter_Pathfinding
+#    LogFilter_MapsLoading
+#    LogFilter_EventAiDev
+#    LogFilter_Calendar
+#        Log filters (active by default - meaning: the filter is active, hence the log is not displayed)
 #        Default: 1 - not include with any log level
 #                 0 - include in log if log level permit
 #
 #    LogFilter_PeriodicAffects
-#    LogFilter_PlayerMoves
-#    LogFilter_SQLText
 #    LogFilter_AIAndMovegens
 #    LogFilter_PlayerStats
 #    LogFilter_Damage
@@ -278,7 +321,8 @@ CleanCharacterDB = 1
 #
 #    WorldLogFile
 #        Packet logging file for the worldserver
-#        Default: "world.log"
+#        Default: ""          - no log file created
+#                 "world.log" - recommended name to create a log file
 #
 #    WorldLogTimestamp
 #        Logfile with timestamp of server start in name
@@ -288,6 +332,10 @@ CleanCharacterDB = 1
 #    DBErrorLogFile
 #        Log file of DB errors detected at server run
 #        Default: "DBErrors.log"
+#
+#    EventAIErrorLogFile
+#        Log file of EventAI errors detected at server run
+#        Default: "EventAIErrors.log"
 #
 #    CharLogFile
 #        Character operations logfile name
@@ -349,17 +397,22 @@ LogFilter_TransportMoves = 1
 LogFilter_VisibilityChanges = 1
 LogFilter_Weather = 1
 LogFilter_DbStrictedCheck = 1
+LogFilter_Pathfinding = 1
+LogFilter_MapsLoading = 1
+LogFilter_EventAiDev = 1
 LogFilter_PeriodicAffects = 0
-LogFilter_PlayerMoves = 0
-LogFilter_SQLText = 0
+LogFilter_PlayerMoves = 1
+LogFilter_SQLText = 1
 LogFilter_AIAndMovegens = 0
 LogFilter_PlayerStats = 0
 LogFilter_Damage = 0
 LogFilter_Combat = 0
 LogFilter_SpellCast = 0
+LogFilter_Calendar = 1
 WorldLogFile = ""
 WorldLogTimestamp = 0
 DBErrorLogFile = "DBErrors.log"
+EventAIErrorLogFile = "EventAIErrors.log"
 CharLogFile = "Char.log"
 CharLogTimestamp = 0
 CharLogDump = 0
@@ -567,11 +620,16 @@ LogColors = ""
 #        Max amount triggered spell casts in chain by one caster, prevent stack overflow crash
 #        Too Low value will make some correct triggered casts fail
 #                 0 (no limit)
-#        Default: 10
+#        Default: 20
 #
 #   BirthdayTime
-#        Set to birthday (date in unix time), By default 28th August 2005, when MaNGOS got it’s name
+#        Set to birthday (date in unix time), By default 28th August 2005, when MaNGOS got it's name
 #        Default: 1125180000
+#
+#   RabbitDay
+#        Set to Rabbit Day (date in unix time), only the day and month are considered, the year is not important
+#        Default: 0 (off)
+#        Suggested: 954547200 (April 1st, 2000)
 #
 #    Instance.IgnoreLevel
 #        Ignore level requirement to enter instance
@@ -620,6 +678,11 @@ LogColors = ""
 #        Non-raid quests allowed in raids
 #        Default: 0 (not allowed)
 #                 1 (allowed)
+#
+#    Group.OfflineLeaderDelay
+#        A grace period for an offline group leader to reconnect before tranfering leadership to a next suitable member of the group (in secs)
+#        Default: 300 (5 minutes)
+#                   0 (Do not transfer group leadership)
 #
 #    Guild.EventLogRecordsCount
 #        Count of guild event log records stored in guild_eventlog table
@@ -711,8 +774,8 @@ LogColors = ""
 #
 #    PetUnsummonAtMount
 #        Persmanent pet will unsummoned at player mount
-#                 0 - unsummon only for flying mounts
-#        Default: 1 - unsummon for any mount
+#        Default: 0 - unsummon only when appropriate (don't unsummon temp summons on ground mounting)
+#                 1 - always unsummon controlled pets on mounting
 #
 #    ClientCacheVersion
 #        Client cache version for client cache data reset. Use any different from DB value and not recently used for triggering reset.
@@ -729,8 +792,8 @@ LogColors = ""
 #
 #    ShowProgressBars
 #        Control show progress bars for load steps at server startup
-#        Default: 1 (true)
-#                 0 (false)
+#        Default: 0 (false)
+#                 1 (true)
 #
 #    WaitAtStartupError
 #        After startup error report wait <Enter> or some time before continue (and possible close console window)
@@ -745,6 +808,11 @@ LogColors = ""
 #        Minimal player level to join raid groups (only affects existing raid groups, party->raid convert ignored)
 #        You can bypass this setting by typing "/script SetAllowLowLevelRaid(true/false)" command in chat
 #        Default: 10
+#
+#    PlayerCommands
+#        Should player chat be parsed for GM commands.
+#        Default: 1 (parse commands)
+#                 0 (ignore commands)
 #
 ###################################################################################################################
 
@@ -779,8 +847,9 @@ AllFlightPaths = 0
 AlwaysMaxSkillForLevel = 0
 ActivateWeather = 1
 CastUnstuck = 1
-MaxSpellCastsInChain = 10
+MaxSpellCastsInChain = 20
 BirthdayTime = 1125180000
+RabbitDay = 0
 Instance.IgnoreLevel = 0
 Instance.IgnoreRaid = 0
 Instance.ResetTimeHour = 4
@@ -791,6 +860,7 @@ Quests.Daily.ResetHour = 6
 Quests.Weekly.ResetWeekDay = 3
 Quests.Weekly.ResetHour = 6
 Quests.IgnoreRaid = 0
+Group.OfflineLeaderDelay = 300
 Guild.EventLogRecordsCount = 100
 Guild.BankEventLogRecordsCount = 25
 TimerBar.Fatigue.GMLevel = 4
@@ -810,14 +880,15 @@ MassMailer.SendPerTick = 10
 SkillChance.Prospecting = 0
 SkillChance.Milling = 0
 OffhandCheckAtTalentsReset = 0
-PetUnsummonAtMount = 1
+PetUnsummonAtMount = 0
 ClientCacheVersion = 0
 Event.Announce = 0
 BeepAtStart = 1
-ShowProgressBars = 1
+ShowProgressBars = 0
 WaitAtStartupError = 0
-Motd = "Welcome to the Massive Network Game Object Server."
+Motd = "Welcome to the Continued Massive Network Game Object Server."
 Raid.MinLevel = 10
+PlayerCommands = 1
 
 ###################################################################################################################
 # PLAYER INTERACTION
@@ -833,8 +904,9 @@ Raid.MinLevel = 10
 #    AllowTwoSide.Interaction.Guild
 #    AllowTwoSide.Interaction.Auction
 #    AllowTwoSide.Interaction.Mail
+#    AllowTwoSide.Interaction.Calendar
 #        Allow or not common :chat(say,yell);channel(chat)group(join)guild(join);merge all auction houses for players from
-#        different teams, send mail to different team.
+#        different teams, send mail to different team, calendar(invite player from different team)
 #        Default: 0 (Not allowed)
 #                 1 (Allowed)
 #
@@ -863,6 +935,7 @@ AllowTwoSide.Interaction.Group = 0
 AllowTwoSide.Interaction.Guild = 0
 AllowTwoSide.Interaction.Auction = 0
 AllowTwoSide.Interaction.Mail = 0
+AllowTwoSide.Interaction.Calendar = 0
 AllowTwoSide.WhoList = 0
 AllowTwoSide.AddFriend = 0
 TalentsInspecting = 1
@@ -880,6 +953,10 @@ TalentsInspecting = 1
 #        Default: 1   - 100%
 #                 1.5 - 150%
 #                 0   - off (0%)
+#
+#    CreatureRespawnAggroDelay
+#        The delay between when a creature spawns and when it can be aggroed by nearby movement.
+#        Default: 5000 (5s)
 #
 #    CreatureFamilyFleeAssistanceRadius
 #        Radius which creature will use to seek for a near creature for assistance. Creature will flee to this creature.
@@ -946,11 +1023,11 @@ TalentsInspecting = 1
 #
 #    ListenRange.Say
 #        Distance from player to listen text that creature (or other world object) say
-#        Default: 25
+#        Default: 40
 #
 #    ListenRange.TextEmote
 #        Distance from player to listen textemote that creature (or other world object) say
-#        Default: 25
+#        Default: 40
 #
 #    ListenRange.Yell
 #        Distance from player to listen text that creature (or other world object) yell
@@ -968,6 +1045,7 @@ TalentsInspecting = 1
 
 ThreatRadius = 100
 Rate.Creature.Aggro = 1
+CreatureRespawnAggroDelay = 5000
 CreatureFamilyFleeAssistanceRadius = 30
 CreatureFamilyAssistanceRadius = 10
 CreatureFamilyAssistanceDelay = 1500
@@ -1000,7 +1078,6 @@ ListenRange.TextEmote = 40
 ListenRange.Yell = 300
 GuidReserveSize.Creature = 100
 GuidReserveSize.GameObject = 100
-
 
 ###################################################################################################################
 # CHAT SETTINGS
@@ -1125,6 +1202,11 @@ Channel.SilentlyGMJoin = 0
 #        Default: 1 (enable)
 #                 0 (disable)
 #
+#    GM.InvisibleAura
+#        A spell that will be cast when a gm uses ".gm visible off" (Must be aura spell)
+#        Default: 37800 (50% Transparency)
+#                 0 (Disabled)
+#
 ###################################################################################################################
 
 GM.LoginState            = 2
@@ -1138,6 +1220,7 @@ GM.LogTrade              = 1
 GM.StartLevel            = 1
 GM.LowerSecurity         = 0
 GM.AllowAchievementGain  = 1
+GM.InvisibleAura         = 37800
 
 ###################################################################################################################
 # VISIBILITY AND RADIUSES
@@ -1218,10 +1301,12 @@ Visibility.AIRelocationNotifyDelay = 1000
 #    Rate.Drop.Item.Legendary
 #    Rate.Drop.Item.Artifact
 #    Rate.Drop.Item.Referenced
+#    Rate.Drop.Item.Quest
 #    Rate.Drop.Money
 #         Drop rates (items by quality and money)
 #         Default: 1
 #
+#    Rate.Pet.XP.Kill
 #    Rate.XP.Kill
 #    Rate.XP.Quest
 #    Rate.XP.Explore
@@ -1366,7 +1451,9 @@ Rate.Drop.Item.Epic = 1
 Rate.Drop.Item.Legendary = 1
 Rate.Drop.Item.Artifact = 1
 Rate.Drop.Item.Referenced = 1
+Rate.Drop.Item.Quest = 1
 Rate.Drop.Money = 1
+Rate.Pet.XP.Kill = 1
 Rate.XP.Kill    = 1
 Rate.XP.Quest   = 1
 Rate.XP.Explore = 1
@@ -1430,6 +1517,11 @@ Death.Ghost.RunSpeed.Battleground = 1.0
 #        Default: 0 (disable)
 #                 1 (enable)
 #
+#    Battleground.ScoreStatistics
+#        Enable Battleground scores storage in database.
+#        Default: 0 - (Disabled)
+#                 1 - (Enabled)
+#
 #    Battleground.InvitationType
 #        Set Battleground invitation type
 #        Default: 0 (normal - invite as much players to bg as possible, don't bother with ballance)
@@ -1450,6 +1542,7 @@ Death.Ghost.RunSpeed.Battleground = 1.0
 Battleground.CastDeserter = 1
 Battleground.QueueAnnouncer.Join = 0
 Battleground.QueueAnnouncer.Start = 0
+Battleground.ScoreStatistics = 0
 Battleground.InvitationType = 0
 BattleGround.PrematureFinishTimer = 300000
 BattleGround.PremadeGroupWaitForMatch = 1800000
@@ -1517,6 +1610,29 @@ Arena.ArenaSeason.ID = 1
 Arena.ArenaSeasonPrevious.ID = 0
 Arena.StartRating = -1
 Arena.StartPersonalRating = -1
+
+###################################################################################################################
+# OUTDOOR PVP CONFIG
+#
+#    OutdoorPvp.SIEnabled               #Enable Silithus Outdoor pvp
+#    OutdoorPvp.EPEnabled               #Enable Eastern Plaguelands Outdoor pvp
+#    OutdoorPvp.HPEnabled               #Enable Hellfire Peninsula Outdoor pvp
+#    OutdoorPvp.ZMEnabled               #Enable Zangarmarsh Outdoor pvp
+#    OutdoorPvp.TFEnabled               #Enable Terokkar Forest  Outdoor pvp
+#    OutdoorPvp.NAEnabled               #Enable Halaa (Nagrand) Outdoor pvp
+#    OutdoorPvp.GHEnabled               #Enable Venture Bay (Grizzly Hills) Outdoor pvp
+#        Default: 1 (enable)
+#                 0 (disable)
+#
+###################################################################################################################
+
+OutdoorPvp.SIEnabled = 1
+OutdoorPvp.EPEnabled = 1
+OutdoorPvp.HPEnabled = 1
+OutdoorPvp.ZMEnabled = 1
+OutdoorPvp.TFEnabled = 1
+OutdoorPvp.NAEnabled = 1
+OutdoorPvp.GHEnabled = 1
 
 ###################################################################################################################
 # NETWORK CONFIG

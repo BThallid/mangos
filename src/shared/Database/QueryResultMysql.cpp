@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,13 @@
 #include "DatabaseEnv.h"
 #include "Errors.h"
 
-QueryResultMysql::QueryResultMysql(MYSQL_RES *result, MYSQL_FIELD *fields, uint64 rowCount, uint32 fieldCount) :
+QueryResultMysql::QueryResultMysql(MYSQL_RES* result, MYSQL_FIELD* fields, uint64 rowCount, uint32 fieldCount) :
     QueryResult(rowCount, fieldCount), mResult(result)
 {
-
     mCurrentRow = new Field[mFieldCount];
     MANGOS_ASSERT(mCurrentRow);
 
-    for (uint32 i = 0; i < mFieldCount; i++)
+    for (uint32 i = 0; i < mFieldCount; ++i)
         mCurrentRow[i].SetType(ConvertNativeType(fields[i].type));
 }
 
@@ -51,7 +50,7 @@ bool QueryResultMysql::NextRow()
         return false;
     }
 
-    for (uint32 i = 0; i < mFieldCount; i++)
+    for (uint32 i = 0; i < mFieldCount; ++i)
         mCurrentRow[i].SetValue(row[i]);
 
     return true;
@@ -59,16 +58,13 @@ bool QueryResultMysql::NextRow()
 
 void QueryResultMysql::EndQuery()
 {
-    if (mCurrentRow)
-    {
-        delete [] mCurrentRow;
-        mCurrentRow = 0;
-    }
+    delete[] mCurrentRow;
+    mCurrentRow = nullptr;
 
     if (mResult)
     {
         mysql_free_result(mResult);
-        mResult = 0;
+        mResult = nullptr;
     }
 }
 

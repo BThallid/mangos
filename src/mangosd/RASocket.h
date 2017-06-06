@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,73 +24,42 @@
 #define _RASOCKET_H
 
 #include "Common.h"
-#include <ace/Synch_Traits.h>
-#include <ace/Svc_Handler.h>
-#include <ace/SOCK_Acceptor.h>
-#include <ace/Acceptor.h>
-#include <ace/Thread_Mutex.h>
-#include <ace/Semaphore.h>
 
-#define RA_BUFF_SIZE 8192
+#include "Network/Socket.hpp"
 
+#include <functional>
+#include <vector>
+#include <string>
 
 /// Remote Administration socket
-typedef ACE_Svc_Handler < ACE_SOCK_STREAM, ACE_NULL_SYNCH> RAHandler;
-class RASocket: protected RAHandler
+class RASocket : public MaNGOS::Socket
 {
-    public:
-        ACE_Semaphore pendingCommands;
-        typedef ACE_Acceptor<RASocket, ACE_SOCK_ACCEPTOR > Acceptor;
-        friend class ACE_Acceptor<RASocket, ACE_SOCK_ACCEPTOR >;
-
-        int sendf(const char*);
-
-    protected:
-        /// things called by ACE framework.
-        RASocket(void);
-        virtual ~RASocket(void);
-
-        /// Called on open ,the void* is the acceptor.
-        virtual int open (void *);
-
-        /// Called on failures inside of the acceptor, don't call from your code.
-        virtual int close (int);
-
-        /// Called when we can read from the socket.
-        virtual int handle_input (ACE_HANDLE = ACE_INVALID_HANDLE);
-
-        /// Called when the socket can write.
-        virtual int handle_output (ACE_HANDLE = ACE_INVALID_HANDLE);
-
-        /// Called when connection is closed or error happens.
-        virtual int handle_close (ACE_HANDLE = ACE_INVALID_HANDLE,
-            ACE_Reactor_Mask = ACE_Event_Handler::ALL_EVENTS_MASK);
-
     private:
-        bool outActive;
-
-        char inputBuffer[RA_BUFF_SIZE];
-        uint32 inputBufferLen;
-
-        ACE_Thread_Mutex outBufferLock;
-        char outputBuffer[RA_BUFF_SIZE];
-        uint32 outputBufferLen;
-
-        uint32 accId;
-        AccountTypes accAccessLevel;
-        bool bSecure;                                       //kick on wrong pass, non exist. user OR user with no priv
-        //will protect from DOS, bruteforce attacks
-        bool bStricted;                                     // not allow execute console only commands (SEC_CONSOLE) remotly
-        AccountTypes iMinLevel;
-        enum
+        enum AuthLevel
         {
-            NONE,                                           //initial value
-            LG,                                             //only login was entered
-            OK,                                             //both login and pass were given, they were correct and user has enough priv.
-        }stage;
+            None,
+            HaveUsername,
+            Authenticated
+        };
 
-        static void zprint(void* callbackArg, const char * szText );
-        static void commandFinished(void* callbackArg, bool success);
+        const bool m_secure;
+        bool m_restricted;
+
+        std::string m_input;
+
+        AuthLevel m_authLevel;
+        AccountTypes m_accountLevel;
+        uint32 m_accountId;
+
+        virtual bool ProcessIncomingData() override;
+        bool HandleInput();
+        void Send(const std::string &message);
+
+    public:
+        RASocket(boost::asio::io_service &service, std::function<void (Socket *)> closeHandler);
+        virtual ~RASocket();
+
+        virtual bool Open() override;
 };
 #endif
 /// @}

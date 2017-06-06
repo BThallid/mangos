@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 #include "Log.h"
 #include "ObjectGuid.h"
 #include "Database/DatabaseEnv.h"
-#include "Policies/SingletonImp.h"
+#include "Policies/Singleton.h"
 #include "ProgressBar.h"
 #include "World.h"
 
@@ -53,25 +53,25 @@ Guild* GuildMgr::GetGuildById(uint32 guildId) const
     if (itr != m_GuildMap.end())
         return itr->second;
 
-    return NULL;
+    return nullptr;
 }
 
 Guild* GuildMgr::GetGuildByName(std::string const& name) const
 {
-    for(GuildMap::const_iterator itr = m_GuildMap.begin(); itr != m_GuildMap.end(); ++itr)
+    for (GuildMap::const_iterator itr = m_GuildMap.begin(); itr != m_GuildMap.end(); ++itr)
         if (itr->second->GetName() == name)
             return itr->second;
 
-    return NULL;
+    return nullptr;
 }
 
 Guild* GuildMgr::GetGuildByLeader(ObjectGuid const& guid) const
 {
-    for(GuildMap::const_iterator itr = m_GuildMap.begin(); itr != m_GuildMap.end(); ++itr)
+    for (GuildMap::const_iterator itr = m_GuildMap.begin(); itr != m_GuildMap.end(); ++itr)
         if (itr->second->GetLeaderGuid() == guid)
             return itr->second;
 
-    return NULL;
+    return nullptr;
 }
 
 std::string GuildMgr::GetGuildNameById(uint32 guildId) const
@@ -89,18 +89,16 @@ void GuildMgr::LoadGuilds()
 
     //                                                    0             1          2          3           4           5           6
     QueryResult* result = CharacterDatabase.Query("SELECT guild.guildid,guild.name,leaderguid,EmblemStyle,EmblemColor,BorderStyle,BorderColor,"
-    //   7               8    9    10         11        12
-        "BackgroundColor,info,motd,createdate,BankMoney,(SELECT COUNT(guild_bank_tab.guildid) FROM guild_bank_tab WHERE guild_bank_tab.guildid = guild.guildid) "
-        "FROM guild ORDER BY guildid ASC");
+                          //   7               8    9    10         11        12
+                          "BackgroundColor,info,motd,createdate,BankMoney,(SELECT COUNT(guild_bank_tab.guildid) FROM guild_bank_tab WHERE guild_bank_tab.guildid = guild.guildid) "
+                          "FROM guild ORDER BY guildid ASC");
 
     if (!result)
     {
         BarGoLink bar(1);
-
         bar.step();
-
-        sLog.outString();
         sLog.outString(">> Loaded %u guild definitions", count);
+        sLog.outString();
         return;
     }
 
@@ -111,13 +109,13 @@ void GuildMgr::LoadGuilds()
     // load guild members
     //                                                                0       1                 2    3     4       5                  6
     QueryResult* guildMembersResult = CharacterDatabase.Query("SELECT guildid,guild_member.guid,rank,pnote,offnote,BankResetTimeMoney,BankRemMoney,"
-    //   7                 8                9                 10               11                12
-        "BankResetTimeTab0,BankRemSlotsTab0,BankResetTimeTab1,BankRemSlotsTab1,BankResetTimeTab2,BankRemSlotsTab2,"
-    //   13                14               15                16               17                18
-        "BankResetTimeTab3,BankRemSlotsTab3,BankResetTimeTab4,BankRemSlotsTab4,BankResetTimeTab5,BankRemSlotsTab5,"
-    //   19               20                21                22               23                      24
-        "characters.name, characters.level, characters.class, characters.zone, characters.logout_time, characters.account "
-        "FROM guild_member LEFT JOIN characters ON characters.guid = guild_member.guid ORDER BY guildid ASC");
+                                      //   7                 8                9                 10               11                12
+                                      "BankResetTimeTab0,BankRemSlotsTab0,BankResetTimeTab1,BankRemSlotsTab1,BankResetTimeTab2,BankRemSlotsTab2,"
+                                      //   13                14               15                16               17                18
+                                      "BankResetTimeTab3,BankRemSlotsTab3,BankResetTimeTab4,BankRemSlotsTab4,BankResetTimeTab5,BankRemSlotsTab5,"
+                                      //   19               20                21                22               23                      24
+                                      "characters.name, characters.level, characters.class, characters.zone, characters.logout_time, characters.account "
+                                      "FROM guild_member LEFT JOIN characters ON characters.guid = guild_member.guid ORDER BY guildid ASC");
 
     // load guild bank tab rights
     //                                                                      0       1     2   3       4
@@ -127,18 +125,18 @@ void GuildMgr::LoadGuilds()
 
     do
     {
-        //Field *fields = result->Fetch();
+        // Field *fields = result->Fetch();
 
         bar.step();
         ++count;
 
         Guild* newGuild = new Guild;
         if (!newGuild->LoadGuildFromDB(result) ||
-            !newGuild->LoadRanksFromDB(guildRanksResult) ||
-            !newGuild->LoadMembersFromDB(guildMembersResult) ||
-            !newGuild->LoadBankRightsFromDB(guildBankTabRightsResult) ||
-            !newGuild->CheckGuildStructure()
-            )
+                !newGuild->LoadRanksFromDB(guildRanksResult) ||
+                !newGuild->LoadMembersFromDB(guildMembersResult) ||
+                !newGuild->LoadBankRightsFromDB(guildBankTabRightsResult) ||
+                !newGuild->CheckGuildStructure()
+           )
         {
             newGuild->Disband();
             delete newGuild;
@@ -149,18 +147,19 @@ void GuildMgr::LoadGuilds()
         newGuild->LoadGuildBankEventLogFromDB();
         newGuild->LoadGuildBankFromDB();
         AddGuild(newGuild);
-    } while(result->NextRow());
+    }
+    while (result->NextRow());
 
     delete result;
     delete guildRanksResult;
     delete guildMembersResult;
     delete guildBankTabRightsResult;
 
-    //delete unused LogGuid records in guild_eventlog and guild_bank_eventlog table
-    //you can comment these lines if you don't plan to change CONFIG_UINT32_GUILD_EVENT_LOG_COUNT and CONFIG_UINT32_GUILD_BANK_EVENT_LOG_COUNT
+    // delete unused LogGuid records in guild_eventlog and guild_bank_eventlog table
+    // you can comment these lines if you don't plan to change CONFIG_UINT32_GUILD_EVENT_LOG_COUNT and CONFIG_UINT32_GUILD_BANK_EVENT_LOG_COUNT
     CharacterDatabase.PExecute("DELETE FROM guild_eventlog WHERE LogGuid > '%u'", sWorld.getConfig(CONFIG_UINT32_GUILD_EVENT_LOG_COUNT));
     CharacterDatabase.PExecute("DELETE FROM guild_bank_eventlog WHERE LogGuid > '%u'", sWorld.getConfig(CONFIG_UINT32_GUILD_BANK_EVENT_LOG_COUNT));
 
-    sLog.outString();
     sLog.outString(">> Loaded %u guild definitions", count);
+    sLog.outString();
 }

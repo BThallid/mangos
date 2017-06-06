@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,13 @@
 #define MANGOSSERVER_PATH_H
 
 #include "Common.h"
-#include <vector>
+#include <deque>
 
-struct SimplePathNode
+struct PathNode
 {
-    float x,y,z;
+    PathNode(): x(0.0f), y(0.0f), z(0.0f) { }
+    PathNode(float _x, float _y, float _z): x(_x), y(_y), z(_z) { }
+    float x, y, z;
 };
 
 template<typename PathElem, typename PathNode = PathElem>
@@ -34,37 +36,51 @@ class Path
         size_t size() const { return i_nodes.size(); }
         bool empty() const { return i_nodes.empty(); }
         void resize(unsigned int sz) { i_nodes.resize(sz); }
+        void crop(unsigned int start, unsigned int end)
+        {
+            while (start && !i_nodes.empty())
+            {
+                i_nodes.pop_front();
+                --start;
+            }
+
+            while (end && !i_nodes.empty())
+            {
+                i_nodes.pop_back();
+                --end;
+            }
+        }
+
         void clear() { i_nodes.clear(); }
-        void erase(uint32 idx) { i_nodes.erase(i_nodes.begin()+idx); }
 
         float GetTotalLength(uint32 start, uint32 end) const
         {
             float len = 0.0f;
-            for(unsigned int idx=start+1; idx < end; ++idx)
+            for (unsigned int idx = start + 1; idx < end; ++idx)
             {
                 PathNode const& node = i_nodes[idx];
-                PathNode const& prev = i_nodes[idx-1];
+                PathNode const& prev = i_nodes[idx - 1];
                 float xd = node.x - prev.x;
                 float yd = node.y - prev.y;
                 float zd = node.z - prev.z;
-                len += sqrtf( xd*xd + yd*yd + zd*zd );
+                len += sqrtf(xd * xd + yd * yd + zd * zd);
             }
             return len;
         }
 
-        float GetTotalLength() const { return GetTotalLength(0,size()); }
+        float GetTotalLength() const { return GetTotalLength(0, size()); }
 
         float GetPassedLength(uint32 curnode, float x, float y, float z) const
         {
-            float len = GetTotalLength(0,curnode);
+            float len = GetTotalLength(0, curnode);
 
             if (curnode > 0)
             {
-                PathNode const& node = i_nodes[curnode-1];
+                PathNode const& node = i_nodes[curnode - 1];
                 float xd = x - node.x;
                 float yd = y - node.y;
                 float zd = z - node.z;
-                len += sqrtf( xd*xd + yd*yd + zd*zd );
+                len += sqrtf(xd * xd + yd * yd + zd * zd);
             }
 
             return len;
@@ -76,9 +92,9 @@ class Path
         void set(size_t idx, PathElem elem) { i_nodes[idx] = elem; }
 
     protected:
-        std::vector<PathElem> i_nodes;
+        std::deque<PathElem> i_nodes;
 };
 
-typedef Path<SimplePathNode> SimplePath;
+typedef Path<PathNode> PointPath;
 
 #endif

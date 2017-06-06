@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,20 +54,20 @@ class UpdateData
     public:
         UpdateData();
 
-        void AddOutOfRangeGUID(ObjectGuidSet& guids);
-        void AddOutOfRangeGUID(ObjectGuid const &guid);
-        void AddUpdateBlock(const ByteBuffer &block);
-        bool BuildPacket(WorldPacket *packet);
-        bool HasData() { return m_blockCount > 0 || !m_outOfRangeGUIDs.empty(); }
+        void AddOutOfRangeGUID(GuidSet& guids);
+        void AddOutOfRangeGUID(ObjectGuid const& guid);
+        void AddUpdateBlock(const ByteBuffer& block);
+        bool BuildPacket(WorldPacket& packet);
+        bool HasData() const { return m_blockCount > 0 || !m_outOfRangeGUIDs.empty(); }
         void Clear();
 
-        ObjectGuidSet const& GetOutOfRangeGUIDs() const { return m_outOfRangeGUIDs; }
+        GuidSet const& GetOutOfRangeGUIDs() const { return m_outOfRangeGUIDs; }
 
     protected:
         uint32 m_blockCount;
-        ObjectGuidSet m_outOfRangeGUIDs;
+        GuidSet m_outOfRangeGUIDs;
         ByteBuffer m_data;
 
-        void Compress(void* dst, uint32 *dst_size, void* src, int src_size);
+    static void Compress(void* dst, uint32* dst_size, void* src, int src_size);
 };
 #endif

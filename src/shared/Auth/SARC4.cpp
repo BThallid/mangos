@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,16 +22,16 @@
 SARC4::SARC4(uint8 len)
 {
     EVP_CIPHER_CTX_init(&m_ctx);
-    EVP_EncryptInit_ex(&m_ctx, EVP_rc4(), NULL, NULL, NULL);
+    EVP_EncryptInit_ex(&m_ctx, EVP_rc4(), nullptr, nullptr, nullptr);
     EVP_CIPHER_CTX_set_key_length(&m_ctx, len);
 }
 
-SARC4::SARC4(uint8 *seed, uint8 len)
+SARC4::SARC4(uint8* seed, uint8 len)
 {
     EVP_CIPHER_CTX_init(&m_ctx);
-    EVP_EncryptInit_ex(&m_ctx, EVP_rc4(), NULL, NULL, NULL);
+    EVP_EncryptInit_ex(&m_ctx, EVP_rc4(), nullptr, nullptr, nullptr);
     EVP_CIPHER_CTX_set_key_length(&m_ctx, len);
-    EVP_EncryptInit_ex(&m_ctx, NULL, NULL, seed, NULL);
+    EVP_EncryptInit_ex(&m_ctx, nullptr, nullptr, seed, nullptr);
 }
 
 SARC4::~SARC4()
@@ -39,12 +39,12 @@ SARC4::~SARC4()
     EVP_CIPHER_CTX_cleanup(&m_ctx);
 }
 
-void SARC4::Init(uint8 *seed)
+void SARC4::Init(uint8* seed)
 {
-    EVP_EncryptInit_ex(&m_ctx, NULL, NULL, seed, NULL);
+    EVP_EncryptInit_ex(&m_ctx, nullptr, nullptr, seed, nullptr);
 }
 
-void SARC4::UpdateData(int len, uint8 *data)
+void SARC4::UpdateData(int len, uint8* data)
 {
     int outlen = 0;
     EVP_EncryptUpdate(&m_ctx, data, &outlen, data, len);

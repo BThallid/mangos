@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ enum AuthResult
     WOW_FAIL_BANNED                 = 0x03,                 ///< This <game> account has been closed and is no longer available for use. Please go to <site>/banned.html for further information.
     WOW_FAIL_UNKNOWN_ACCOUNT        = 0x04,                 ///< The information you have entered is not valid. Please check the spelling of the account name and password. If you need help in retrieving a lost or stolen password, see <site> for more information
     WOW_FAIL_INCORRECT_PASSWORD     = 0x05,                 ///< The information you have entered is not valid. Please check the spelling of the account name and password. If you need help in retrieving a lost or stolen password, see <site> for more information
-                                                            // client reject next login attempts after this error, so in code used WOW_FAIL_UNKNOWN_ACCOUNT for both cases
+    // client reject next login attempts after this error, so in code used WOW_FAIL_UNKNOWN_ACCOUNT for both cases
     WOW_FAIL_ALREADY_ONLINE         = 0x06,                 ///< This account is already logged into <game>. Please check the spelling and try again.
     WOW_FAIL_NO_TIME                = 0x07,                 ///< You have used up your prepaid time for this account. Please purchase more to continue playing
     WOW_FAIL_DB_BUSY                = 0x08,                 ///< Could not log in to <game> at this time. Please try again later.
@@ -76,16 +76,16 @@ enum AuthResult
     WOW_FAIL_LOCKED_ENFORCED        = 0x10,                 ///< You have applied a lock to your account. You can change your locked status by calling your account lock phone number.
     WOW_FAIL_TRIAL_ENDED            = 0x11,                 ///< Your trial subscription has expired. Please visit <site> to upgrade your account.
     WOW_FAIL_USE_BATTLENET          = 0x12,                 ///< WOW_FAIL_OTHER This account is now attached to a Battle.net account. Please login with your Battle.net account email address and password.
-    //WOW_FAIL_OVERMIND_CONVERTED
-    //WOW_FAIL_ANTI_INDULGENCE
-    //WOW_FAIL_EXPIRED
-    //WOW_FAIL_NO_GAME_ACCOUNT
-    //WOW_FAIL_BILLING_LOCK
-    //WOW_FAIL_IGR_WITHOUT_BNET
-    //WOW_FAIL_AA_LOCK
-    //WOW_FAIL_UNLOCKABLE_LOCK
-    //WOW_FAIL_MUST_USE_BNET
-    //WOW_FAIL_OTHER
+    // WOW_FAIL_OVERMIND_CONVERTED
+    // WOW_FAIL_ANTI_INDULGENCE
+    // WOW_FAIL_EXPIRED
+    // WOW_FAIL_NO_GAME_ACCOUNT
+    // WOW_FAIL_BILLING_LOCK
+    // WOW_FAIL_IGR_WITHOUT_BNET
+    // WOW_FAIL_AA_LOCK
+    // WOW_FAIL_UNLOCKABLE_LOCK
+    // WOW_FAIL_MUST_USE_BNET
+    // WOW_FAIL_OTHER
 };
 
 #endif

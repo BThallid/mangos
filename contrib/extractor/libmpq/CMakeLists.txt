@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2011 MaNGOS project <http://getmangos.com/>
+# This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
 #
 # This file is free software; as a special exception the author gives
 # unlimited permission to copy and/or distribute it, with or without
@@ -8,6 +8,9 @@
 # WITHOUT ANY WARRANTY, to the extent permitted by law; without even the
 # implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-add_library (libmpq common.cpp  explode.cpp  extract.cpp  huffman.cpp  mpq.cpp  parser.cpp  wave.cpp )
+# disable warnings for dependencies
+add_compile_options(-w)
+
+add_library (libmpq STATIC common.cpp  explode.cpp  extract.cpp  huffman.cpp  mpq.cpp  parser.cpp  wave.cpp)
 # link libmpq with zlib
 target_link_libraries (libmpq z)

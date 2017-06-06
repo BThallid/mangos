@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ class GroupReference;
 class GroupRefManager : public RefManager<Group, Player>
 {
     public:
-        GroupReference* getFirst() { return ((GroupReference* ) RefManager<Group, Player>::getFirst()); }
+        GroupReference* getFirst() { return ((GroupReference*) RefManager<Group, Player>::getFirst()); }
+        GroupReference const* getFirst() const { return ((GroupReference const*) RefManager<Group, Player>::getFirst()); }
 };
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ namespace MaNGOS
      * OperatorNew policy creates an object on the heap using new.
      */
     template<class T>
-    class MANGOS_DLL_DECL OperatorNew
+    class OperatorNew
     {
         public:
 
@@ -37,7 +37,7 @@ namespace MaNGOS
                 return (new T);
             }
 
-            static void Destroy(T *obj)
+            static void Destroy(T* obj)
             {
                 delete obj;
             }
@@ -48,21 +48,21 @@ namespace MaNGOS
      * the first time call Create.
      */
     template<class T>
-    class MANGOS_DLL_DECL LocalStaticCreation
+    class LocalStaticCreation
     {
-        union MaxAlign
-        {
-            char t_[sizeof(T)];
-            short int shortInt_;
-            int int_;
-            long int longInt_;
-            float float_;
-            double double_;
-            long double longDouble_;
-            struct Test;
-            int Test::* pMember_;
-            int (Test::*pMemberFn_)(int);
-        };
+            union MaxAlign
+            {
+                char t_[sizeof(T)];
+                short int shortInt_;
+                int int_;
+                long int longInt_;
+                float float_;
+                double double_;
+                long double longDouble_;
+                struct Test;
+                int Test::* pMember_;
+                int (Test::*pMemberFn_)(int);
+            };
 
         public:
 
@@ -72,7 +72,7 @@ namespace MaNGOS
                 return new(&si_localStatic) T;
             }
 
-            static void Destroy(T *obj)
+            static void Destroy(T* obj)
             {
                 obj->~T();
             }
@@ -82,7 +82,7 @@ namespace MaNGOS
      * CreateUsingMalloc by pass the memory manger.
      */
     template<class T>
-    class MANGOS_DLL_DECL CreateUsingMalloc
+    class CreateUsingMalloc
     {
         public:
 
@@ -91,7 +91,7 @@ namespace MaNGOS
                 void* p = malloc(sizeof(T));
 
                 if (!p)
-                    return NULL;
+                    return nullptr;
 
                 return new(p) T;
             }
@@ -107,7 +107,7 @@ namespace MaNGOS
      * CreateOnCallBack creates the object base on the call back.
      */
     template<class T, class CALL_BACK>
-    class MANGOS_DLL_DECL CreateOnCallBack
+    class CreateOnCallBack
     {
         public:
             static T* Create()
@@ -115,7 +115,7 @@ namespace MaNGOS
                 return CALL_BACK::createCallBack();
             }
 
-            static void Destroy(T *p)
+            static void Destroy(T* p)
             {
                 CALL_BACK::destroyCallBack(p);
             }

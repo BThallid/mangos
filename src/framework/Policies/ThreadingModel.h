@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,30 +29,30 @@
 namespace MaNGOS
 {
     template<typename MUTEX>
-    class MANGOS_DLL_DECL GeneralLock
+    class GeneralLock
     {
         public:
 
-            GeneralLock(MUTEX &m)
+            GeneralLock(MUTEX& m)
                 : i_mutex(m)
             {
-                i_mutex.acquire();
+                i_mutex.lock();;
             }
 
             ~GeneralLock()
             {
-                i_mutex.release();
+                i_mutex.unlock();
             }
 
         private:
 
-            GeneralLock(const GeneralLock &);
-            GeneralLock& operator=(const GeneralLock &);
-            MUTEX &i_mutex;
+            GeneralLock(const GeneralLock&);
+            GeneralLock& operator=(const GeneralLock&);
+            MUTEX& i_mutex;
     };
 
     template<class T>
-    class MANGOS_DLL_DECL SingleThreaded
+    class SingleThreaded
     {
         public:
 
@@ -72,7 +72,7 @@ namespace MaNGOS
     };
 
     template<class T, class MUTEX>
-    class MANGOS_DLL_DECL ObjectLevelLockable
+    class ObjectLevelLockable
     {
         public:
 
@@ -87,7 +87,7 @@ namespace MaNGOS
             {
                 public:
 
-                    Lock(ObjectLevelLockable<T, MUTEX> &host)
+                    Lock(ObjectLevelLockable<T, MUTEX>& host)
                         : i_lock(host.i_mtx)
                     {
                     }
@@ -107,7 +107,7 @@ namespace MaNGOS
     };
 
     template<class T, class MUTEX>
-    class MANGOS_DLL_DECL ClassLevelLockable
+    class ClassLevelLockable
     {
         public:
 
@@ -123,22 +123,22 @@ namespace MaNGOS
 
                     Lock(const T& /*host*/)
                     {
-                        ClassLevelLockable<T, MUTEX>::si_mtx.acquire();
+                        ClassLevelLockable<T, MUTEX>::si_mtx.lock();
                     }
 
-                    Lock(const ClassLevelLockable<T, MUTEX> &)
+                    Lock(const ClassLevelLockable<T, MUTEX>&)
                     {
-                        ClassLevelLockable<T, MUTEX>::si_mtx.acquire();
+                        ClassLevelLockable<T, MUTEX>::si_mtx.lock();
                     }
 
                     Lock()
                     {
-                        ClassLevelLockable<T, MUTEX>::si_mtx.acquire();
+                        ClassLevelLockable<T, MUTEX>::si_mtx.lock();
                     }
 
                     ~Lock()
                     {
-                        ClassLevelLockable<T, MUTEX>::si_mtx.release();
+                        ClassLevelLockable<T, MUTEX>::si_mtx.unlock();
                     }
             };
 
@@ -146,12 +146,11 @@ namespace MaNGOS
 
             static MUTEX si_mtx;
     };
-
 }
 
 template<class T, class MUTEX> MUTEX MaNGOS::ClassLevelLockable<T, MUTEX>::si_mtx;
 
 #define INSTANTIATE_CLASS_MUTEX(CTYPE, MUTEX) \
-    template class MANGOS_DLL_DECL MaNGOS::ClassLevelLockable<CTYPE, MUTEX>
+    template class MaNGOS::ClassLevelLockable<CTYPE, MUTEX>
 
 #endif

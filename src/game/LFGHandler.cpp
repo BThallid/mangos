@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,10 +20,9 @@
 #include "Log.h"
 #include "Player.h"
 #include "WorldPacket.h"
-#include "ObjectMgr.h"
-#include "World.h"
+#include "ObjectAccessor.h"
 
-void WorldSession::HandleLfgJoinOpcode( WorldPacket & recv_data )
+void WorldSession::HandleLfgJoinOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_LFG_JOIN");
 
@@ -49,38 +48,39 @@ void WorldSession::HandleLfgJoinOpcode( WorldPacket & recv_data )
 
     recv_data >> comment;                                   // lfg comment
 
-    //SendLfgJoinResult(ERR_LFG_OK);
-    //SendLfgUpdate(false, LFG_UPDATE_JOIN, dungeons[0]);
+    // SendLfgJoinResult(ERR_LFG_OK);
+    // SendLfgUpdate(false, LFG_UPDATE_JOIN, dungeons[0]);
 }
 
-void WorldSession::HandleLfgLeaveOpcode( WorldPacket & /*recv_data*/ )
+void WorldSession::HandleLfgLeaveOpcode(WorldPacket& /*recv_data*/)
 {
     DEBUG_LOG("CMSG_LFG_LEAVE");
 
-    //SendLfgUpdate(false, LFG_UPDATE_LEAVE, 0);
+    // SendLfgUpdate(false, LFG_UPDATE_LEAVE, 0);
 }
 
-void WorldSession::HandleSearchLfgJoinOpcode( WorldPacket & recv_data )
+void WorldSession::HandleSearchLfgJoinOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_LFG_SEARCH_JOIN");
 
-    uint32 temp, entry;
-    recv_data >> temp;
+    recv_data >> Unused<uint32>();
+    //uint32 temp, entry;
+    //recv_data >> temp;
 
-    entry = (temp & 0x00FFFFFF);
-    LfgType type = LfgType((temp >> 24) & 0x000000FF);
+    //entry = (temp & 0x00FFFFFF);
+    // LfgType type = LfgType((temp >> 24) & 0x000000FF);
 
-    //SendLfgSearchResults(type, entry);
+    // SendLfgSearchResults(type, entry);
 }
 
-void WorldSession::HandleSearchLfgLeaveOpcode( WorldPacket & recv_data )
+void WorldSession::HandleSearchLfgLeaveOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_LFG_SEARCH_LEAVE");
 
     recv_data >> Unused<uint32>();                          // join id?
 }
 
-void WorldSession::HandleSetLfgCommentOpcode( WorldPacket & recv_data )
+void WorldSession::HandleSetLfgCommentOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_SET_LFG_COMMENT");
 
@@ -89,7 +89,7 @@ void WorldSession::HandleSetLfgCommentOpcode( WorldPacket & recv_data )
     DEBUG_LOG("LFG comment \"%s\"", comment.c_str());
 }
 
-void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry)
+void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry) const
 {
     WorldPacket data(SMSG_LFG_SEARCH_RESULTS);
     data << uint32(type);                                   // type
@@ -97,11 +97,11 @@ void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry)
 
     uint8 isGuidsPresent = 0;
     data << uint8(isGuidsPresent);
-    if(isGuidsPresent)
+    if (isGuidsPresent)
     {
         uint32 guids_count = 0;
         data << uint32(guids_count);
-        for(uint32 i = 0; i < guids_count; ++i)
+        for (uint32 i = 0; i < guids_count; ++i)
         {
             data << uint64(0);                              // player/group guid
         }
@@ -111,32 +111,32 @@ void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry)
     data << uint32(groups_count);                           // groups count
     data << uint32(groups_count);                           // groups count (total?)
 
-    for(uint32 i = 0; i < groups_count; ++i)
+    for (uint32 i = 0; i < groups_count; ++i)
     {
         data << uint64(1);                                  // group guid
 
         uint32 flags = 0x92;
         data << uint32(flags);                              // flags
 
-        if(flags & 0x2)
+        if (flags & 0x2)
         {
             data << uint8(0);                               // comment string, max len 256
         }
 
-        if(flags & 0x10)
+        if (flags & 0x10)
         {
-            for(uint32 j = 0; j < 3; ++j)
+            for (uint32 j = 0; j < 3; ++j)
                 data << uint8(0);                           // roles
         }
 
-        if(flags & 0x80)
+        if (flags & 0x80)
         {
             data << uint64(0);                              // instance guid
             data << uint32(0);                              // completed encounters
         }
     }
 
-    //TODO: Guard Player map
+    // TODO: Guard Player map
     HashMapHolder<Player>::MapType const& players = sObjectAccessor.GetPlayers();
     uint32 playersSize = players.size();
     data << uint32(playersSize);                            // players count
@@ -144,7 +144,7 @@ void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry)
 
     for (HashMapHolder<Player>::MapType::const_iterator iter = players.begin(); iter != players.end(); ++iter)
     {
-        Player *plr = iter->second;
+        Player* plr = iter->second;
 
         if (!plr || plr->GetTeam() != _player->GetTeam())
             continue;
@@ -163,7 +163,7 @@ void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry)
             data << uint8(plr->getClass());
             data << uint8(plr->getRace());
 
-            for(uint32 i = 0; i < 3; ++i)
+            for (uint32 i = 0; i < 3; ++i)
                 data << uint8(0);                           // talent spec x/x/x
 
             data << uint32(0);                              // armor
@@ -213,35 +213,35 @@ void WorldSession::SendLfgSearchResults(LfgType type, uint32 entry)
         }
     }
 
-    SendPacket(&data);
+    SendPacket(data);
 }
 
-void WorldSession::SendLfgJoinResult(LfgJoinResult result)
+void WorldSession::SendLfgJoinResult(LfgJoinResult result) const
 {
     WorldPacket data(SMSG_LFG_JOIN_RESULT, 0);
     data << uint32(result);
     data << uint32(0); // ERR_LFG_ROLE_CHECK_FAILED_TIMEOUT = 3, ERR_LFG_ROLE_CHECK_FAILED_NOT_VIABLE = (value - 3 == result)
 
-    if(result == ERR_LFG_NO_SLOTS_PARTY)
+    if (result == ERR_LFG_NO_SLOTS_PARTY)
     {
         uint8 count1 = 0;
         data << uint8(count1);                              // players count?
-        for(uint32 i = 0; i < count1; ++i)
+        /*for (uint32 i = 0; i < count1; ++i)
         {
             data << uint64(0);                              // player guid?
             uint32 count2 = 0;
-            for(uint32 j = 0; j < count2; ++j)
+            for (uint32 j = 0; j < count2; ++j)
             {
                 data << uint32(0);                          // dungeon id/type
                 data << uint32(0);                          // lock status?
             }
-        }
+        }*/
     }
 
-    SendPacket(&data);
+    SendPacket(data);
 }
 
-void WorldSession::SendLfgUpdate(bool isGroup, LfgUpdateType updateType, uint32 id)
+void WorldSession::SendLfgUpdate(bool isGroup, LfgUpdateType updateType, uint32 id) const
 {
     WorldPacket data(isGroup ? SMSG_LFG_UPDATE_PARTY : SMSG_LFG_UPDATE_PLAYER, 0);
     data << uint8(updateType);
@@ -249,24 +249,24 @@ void WorldSession::SendLfgUpdate(bool isGroup, LfgUpdateType updateType, uint32 
     uint8 extra = updateType == LFG_UPDATE_JOIN ? 1 : 0;
     data << uint8(extra);
 
-    if(extra)
+    if (extra)
     {
         data << uint8(0);
         data << uint8(0);
         data << uint8(0);
 
-        if(isGroup)
+        if (isGroup)
         {
             data << uint8(0);
-            for(uint32 i = 0; i < 3; ++i)
+            for (uint32 i = 0; i < 3; ++i)
                 data << uint8(0);
         }
 
         uint8 count = 1;
         data << uint8(count);
-        for(uint32 i = 0; i < count; ++i)
+        for (uint32 i = 0; i < count; ++i)
             data << uint32(id);
         data << "";
     }
-    SendPacket(&data);
+    SendPacket(data);
 }

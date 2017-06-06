@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,27 +18,29 @@
 
 #include "MaNGOSsoap.h"
 
-#define POOL_SIZE   5
+#include <string>
 
-void MaNGOSsoapRunnable::run()
+SOAPThread::SOAPThread(const std::string &host, int port) : m_host(host), m_port(port), m_workerThread(&SOAPThread::Work, this) {}
+
+SOAPThread::~SOAPThread()
 {
-    // create pool
-    SOAPWorkingThread pool;
-    pool.activate (THR_NEW_LWP | THR_JOINABLE, POOL_SIZE);
+    sLog.outError("SOAP shutting down");
+    m_workerThread.join();
+}
 
-    struct soap soap;
-    int m, s;
+void SOAPThread::Work()
+{
+    soap soap;
+
     soap_init(&soap);
     soap_set_imode(&soap, SOAP_C_UTFSTRING);
     soap_set_omode(&soap, SOAP_C_UTFSTRING);
-    m = soap_bind(&soap, m_host.c_str(), m_port, 100);
 
-    // check every 3 seconds if world ended
-    soap.accept_timeout = 3;
+    soap.accept_timeout = AcceptTimeout;
+    soap.recv_timeout = DataTimeout;
+    soap.send_timeout = DataTimeout;
 
-    soap.recv_timeout = 5;
-    soap.send_timeout = 5;
-    if (m < 0)
+    if (soap_bind(&soap, m_host.c_str(), m_port, BackLogSize) < 0)
     {
         sLog.outError("MaNGOSsoap: couldn't bind to %s:%d", m_host.c_str(), m_port);
         exit(-1);
@@ -46,43 +48,25 @@ void MaNGOSsoapRunnable::run()
 
     sLog.outString("MaNGOSsoap: bound to http://%s:%d", m_host.c_str(), m_port);
 
-    while(!World::IsStopped())
+    while (!World::IsStopped())
     {
-        s = soap_accept(&soap);
+        auto s = soap_accept(&soap);
 
-        if (s < 0)
-        {
-            // ran into an accept timeout
+        // timeout?
+        if (s == SOAP_INVALID_SOCKET)
             continue;
-        }
 
-        DEBUG_LOG("MaNGOSsoap: accepted connection from IP=%d.%d.%d.%d", (int)(soap.ip>>24)&0xFF, (int)(soap.ip>>16)&0xFF, (int)(soap.ip>>8)&0xFF, (int)soap.ip&0xFF);
-        struct soap* thread_soap = soap_copy(&soap);// make a safe copy
+        DEBUG_LOG("MaNGOSsoap: accepted connection from IP=%d.%d.%d.%d", (int)(soap.ip >> 24) & 0xFF, (int)(soap.ip >> 16) & 0xFF, (int)(soap.ip >> 8) & 0xFF, (int)soap.ip & 0xFF);
 
-        ACE_Message_Block *mb = new ACE_Message_Block(sizeof(struct soap*));
-        ACE_OS::memcpy (mb->wr_ptr (), &thread_soap, sizeof(struct soap*));
-        pool.putq(mb);
+        auto copy = soap_copy(&soap);
+        soap_serve(copy);
+        soap_destroy(copy);
     }
-    pool.msg_queue ()->deactivate ();
-    pool.wait ();
 
+    soap_end(&soap);
     soap_done(&soap);
 }
 
-void SOAPWorkingThread::process_message (ACE_Message_Block *mb)
-{
-    ACE_TRACE (ACE_TEXT ("SOAPWorkingThread::process_message"));
-
-    struct soap* soap;
-    ACE_OS::memcpy (&soap, mb->rd_ptr (), sizeof(struct soap*));
-    mb->release ();
-
-    soap_serve(soap);
-    soap_destroy(soap); // dealloc C++ data
-    soap_end(soap); // dealloc data and clean up
-    soap_done(soap); // detach soap struct
-    free(soap);
-}
 /*
 Code used for generating stubs:
 
@@ -97,64 +81,64 @@ int ns1__executeCommand(soap* soap, char* command, char** result)
         return 401;
     }
 
-    uint32 accountId = sAccountMgr.GetId(soap->userid);
-    if(!accountId)
+    auto const accountId = sAccountMgr.GetId(soap->userid);
+    if (!accountId)
     {
         DEBUG_LOG("MaNGOSsoap: Client used invalid username '%s'", soap->userid);
         return 401;
     }
 
-    if(!sAccountMgr.CheckPassword(accountId, soap->passwd))
+    if (!sAccountMgr.CheckPassword(accountId, soap->passwd))
     {
         DEBUG_LOG("MaNGOSsoap: invalid password for account '%s'", soap->userid);
         return 401;
     }
 
-    if(sAccountMgr.GetSecurity(accountId) < SEC_ADMINISTRATOR)
+    if (sAccountMgr.GetSecurity(accountId) < SOAPThread::MinLevel)
     {
         DEBUG_LOG("MaNGOSsoap: %s's gmlevel is too low", soap->userid);
         return 403;
     }
 
-    if(!command || !*command)
+    if (!command || !*command)
         return soap_sender_fault(soap, "Command mustn't be empty", "The supplied command was an empty string");
 
     DEBUG_LOG("MaNGOSsoap: got command '%s'", command);
-    SOAPCommand connection;
+
+    bool commandExecuted = false, commandSucceeded = false;
+    std::vector<char> buffer;
+    buffer.reserve(SOAPThread::CommandOutputBufferSize);
 
     // commands are executed in the world thread. We have to wait for them to be completed
+    sWorld.QueueCliCommand(new CliCommandHolder(accountId, SEC_CONSOLE, command,
+        [&buffer] (const char *output)
+        {
+            assert(output);
+
+            for (auto p = output; *p; ++p)
+                buffer.push_back(*p);
+        },
+        [soap, &commandExecuted, &commandSucceeded] (bool success)
+        {
+            commandExecuted = true;
+            commandSucceeded = success;
+        }));
+
+    while (!commandExecuted)
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    buffer.push_back(0);
+    auto const printBuffer = soap_strdup(soap, &buffer[0]);
+
+    if (!commandSucceeded)
     {
-        // CliCommandHolder will be deleted from world, accessing after queueing is NOT save
-        CliCommandHolder* cmd = new CliCommandHolder(accountId, SEC_CONSOLE, &connection, command, &SOAPCommand::print, &SOAPCommand::commandFinished);
-        sWorld.QueueCliCommand(cmd);
+        auto ret = soap_sender_fault(soap, printBuffer, printBuffer);
+
+        return ret;
     }
 
-    // wait for callback to complete command
-
-    int acc = connection.pendingCommands.acquire();
-    if(acc)
-    {
-        sLog.outError("MaNGOSsoap: Error while acquiring lock, acc = %i, errno = %u", acc, errno);
-    }
-
-    // alright, command finished
-
-    char* printBuffer = soap_strdup(soap, connection.m_printBuffer.c_str());
-    if(connection.hasCommandSucceeded())
-    {
-        *result = printBuffer;
-        return SOAP_OK;
-    }
-    else
-        return soap_sender_fault(soap, printBuffer, printBuffer);
-}
-
-
-void SOAPCommand::commandFinished(void* soapconnection, bool success)
-{
-    SOAPCommand* con = (SOAPCommand*)soapconnection;
-    con->setCommandSuccess(success);
-    con->pendingCommands.release();
+    *result = printBuffer;
+    return SOAP_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,10 +148,11 @@ void SOAPCommand::commandFinished(void* soapconnection, bool success)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct Namespace namespaces[] =
-{ { "SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/" }, // must be first
-  { "SOAP-ENC", "http://schemas.xmlsoap.org/soap/encoding/" }, // must be second
-  { "xsi", "http://www.w3.org/1999/XMLSchema-instance", "http://www.w3.org/*/XMLSchema-instance" },
-  { "xsd", "http://www.w3.org/1999/XMLSchema",          "http://www.w3.org/*/XMLSchema" },
-  { "ns1", "urn:MaNGOS" },     // "ns1" namespace prefix
-  { NULL, NULL }
+{
+    { "SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/" }, // must be first
+    { "SOAP-ENC", "http://schemas.xmlsoap.org/soap/encoding/" }, // must be second
+    { "xsi", "http://www.w3.org/1999/XMLSchema-instance", "http://www.w3.org/*/XMLSchema-instance" },
+    { "xsd", "http://www.w3.org/1999/XMLSchema",          "http://www.w3.org/*/XMLSchema" },
+    { "ns1", "urn:MaNGOS" },     // "ns1" namespace prefix
+    { nullptr, nullptr }
 };

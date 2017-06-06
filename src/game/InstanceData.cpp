@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,9 @@
 #include "Database/DatabaseEnv.h"
 #include "Map.h"
 #include "Log.h"
+#include "WorldPacket.h"
 
-void InstanceData::SaveToDB()
+void InstanceData::SaveToDB() const
 {
     // no reason to save BGs/Arenas
     if (instance->IsBattleGroundOrArena())
@@ -39,16 +40,49 @@ void InstanceData::SaveToDB()
         CharacterDatabase.PExecute("UPDATE world SET data = '%s' WHERE map = '%u'", data.c_str(), instance->GetId());
 }
 
-bool InstanceData::CheckAchievementCriteriaMeet( uint32 criteria_id, Player const* /*source*/, Unit const* /*target*/ /*= NULL*/, uint32 /*miscvalue1*/ /*= 0*/ )
+bool InstanceData::CheckAchievementCriteriaMeet(uint32 criteria_id, Player const* /*source*/, Unit const* /*target*/ /*= nullptr*/, uint32 /*miscvalue1*/ /*= 0*/) const
 {
     sLog.outError("Achievement system call InstanceData::CheckAchievementCriteriaMeet but instance script for map %u not have implementation for achievement criteria %u",
-        instance->GetId(),criteria_id);
+                  instance->GetId(), criteria_id);
     return false;
 }
 
-bool InstanceData::CheckConditionCriteriaMeet(Player const* /*source*/, uint32 map_id, uint32 instance_condition_id)
+bool InstanceData::CheckConditionCriteriaMeet(Player const* /*source*/, uint32 instance_condition_id, WorldObject const* /*conditionSource*/, uint32 conditionSourceType) const
 {
-    sLog.outError("Condition system call InstanceData::CheckConditionCriteriaMeet but instance script for map %u not have implementation for player condition criteria with internal id %u for map %u",
-        instance->GetId(), instance_condition_id, map_id);
+    sLog.outError("Condition system call InstanceData::CheckConditionCriteriaMeet but instance script for map %u not have implementation for player condition criteria with internal id %u (called from %u)",
+                  instance->GetId(), instance_condition_id, uint32(conditionSourceType));
     return false;
+}
+
+void InstanceData::SendEncounterFrame(uint32 type, ObjectGuid sourceGuid /*= nullptr*/, uint8 param1 /*= 0*/, uint8 param2 /*= 0*/) const
+{
+    // size of this packet is at most 15 (usually less)
+    WorldPacket data(SMSG_INSTANCE_ENCOUNTER, 15);
+    data << uint32(type);
+
+    switch (type)
+    {
+        case ENCOUNTER_FRAME_ENGAGE:
+        case ENCOUNTER_FRAME_DISENGAGE:
+        case ENCOUNTER_FRAME_UPDATE_PRIORITY:
+            MANGOS_ASSERT(sourceGuid);
+
+            data << sourceGuid.WriteAsPacked();
+            data << uint8(param1);
+            break;
+        case ENCOUNTER_FRAME_ADD_TIMER:
+        case ENCOUNTER_FRAME_ENABLE_OBJECTIVE:
+        case ENCOUNTER_FRAME_DISABLE_OBJECTIVE:
+            data << uint8(param1);
+            break;
+        case ENCOUNTER_FRAME_UPDATE_OBJECTIVE:
+            data << uint8(param1);
+            data << uint8(param2);
+            break;
+        case ENCOUNTER_FRAME_UNK7:
+        default:
+            break;
+    }
+
+    instance->SendToPlayers(data);
 }

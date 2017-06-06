@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,12 +24,13 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
+#include <cstdarg>
 
 #define MIN_CONNECTION_POOL_SIZE 1
 #define MAX_CONNECTION_POOL_SIZE 16
 
 //////////////////////////////////////////////////////////////////////////
-SqlPreparedStatement * SqlConnection::CreateStatement( const std::string& fmt )
+SqlPreparedStatement* SqlConnection::CreateStatement(const std::string& fmt)
 {
     return new SqlPlainPreparedStatement(fmt, *this);
 }
@@ -45,33 +46,30 @@ void SqlConnection::FreePreparedStatements()
     m_holder.clear();
 }
 
-SqlPreparedStatement * SqlConnection::GetStmt( int nIndex )
+SqlPreparedStatement* SqlConnection::GetStmt(uint32 nIndex)
 {
-    if(nIndex < 0)
-        return NULL;
+    // resize stmt container
+    if (m_holder.size() <= nIndex)
+        m_holder.resize(nIndex + 1, nullptr);
 
-    //resize stmt container
-    if(m_holder.size() <= nIndex)
-        m_holder.resize(nIndex + 1, NULL);
+    SqlPreparedStatement* pStmt = nullptr;
 
-    SqlPreparedStatement * pStmt = NULL;
-
-    //create stmt if needed
-    if(m_holder[nIndex] == NULL)
+    // create stmt if needed
+    if (m_holder[nIndex] == nullptr)
     {
-        //obtain SQL request string
+        // obtain SQL request string
         std::string fmt = m_db.GetStmtString(nIndex);
         MANGOS_ASSERT(fmt.length());
-        //allocate SQlPreparedStatement object
+        // allocate SQlPreparedStatement object
         pStmt = CreateStatement(fmt);
-        //prepare statement
-        if(!pStmt->prepare())
+        // prepare statement
+        if (!pStmt->prepare())
         {
             MANGOS_ASSERT(false && "Unable to prepare SQL statement");
-            return NULL;
+            return nullptr;
         }
 
-        //save statement in internal registry
+        // save statement in internal registry
         m_holder[nIndex] = pStmt;
     }
     else
@@ -80,16 +78,16 @@ SqlPreparedStatement * SqlConnection::GetStmt( int nIndex )
     return pStmt;
 }
 
-bool SqlConnection::ExecuteStmt(int nIndex, const SqlStmtParameters& id )
+bool SqlConnection::ExecuteStmt(int nIndex, const SqlStmtParameters& id)
 {
-    if(nIndex == -1)
+    if (nIndex == -1)
         return false;
 
-    //get prepared statement object
-    SqlPreparedStatement * pStmt = GetStmt(nIndex);
-    //bind parameters
+    // get prepared statement object
+    SqlPreparedStatement* pStmt = GetStmt(nIndex);
+    // bind parameters
     pStmt->bind(id);
-    //execute statement
+    // execute statement
     return pStmt->execute();
 }
 
@@ -99,35 +97,35 @@ Database::~Database()
     StopServer();
 }
 
-bool Database::Initialize(const char * infoString, int nConns /*= 1*/)
+bool Database::Initialize(const char* infoString, int nConns /*= 1*/)
 {
     // Enable logging of SQL commands (usually only GM commands)
     // (See method: PExecuteLog)
     m_logSQL = sConfig.GetBoolDefault("LogSQL", false);
-    m_logsDir = sConfig.GetStringDefault("LogsDir","");
-    if(!m_logsDir.empty())
+    m_logsDir = sConfig.GetStringDefault("LogsDir");
+    if (!m_logsDir.empty())
     {
-        if((m_logsDir.at(m_logsDir.length()-1)!='/') && (m_logsDir.at(m_logsDir.length()-1)!='\\'))
+        if ((m_logsDir.at(m_logsDir.length() - 1) != '/') && (m_logsDir.at(m_logsDir.length() - 1) != '\\'))
             m_logsDir.append("/");
     }
 
-    m_pingIntervallms = sConfig.GetIntDefault ("MaxPingTime", 30) * (MINUTE * 1000);
+    m_pingIntervallms = sConfig.GetIntDefault("MaxPingTime", 30) * (MINUTE * 1000);
 
-    //create DB connections
+    // create DB connections
 
-    //setup connection pool size
-    if(nConns < MIN_CONNECTION_POOL_SIZE)
+    // setup connection pool size
+    if (nConns < MIN_CONNECTION_POOL_SIZE)
         m_nQueryConnPoolSize = MIN_CONNECTION_POOL_SIZE;
-    else if(nConns > MAX_CONNECTION_POOL_SIZE)
+    else if (nConns > MAX_CONNECTION_POOL_SIZE)
         m_nQueryConnPoolSize = MAX_CONNECTION_POOL_SIZE;
     else
         m_nQueryConnPoolSize = nConns;
 
-    //create connection pool for sync requests
+    // create connection pool for sync requests
     for (int i = 0; i < m_nQueryConnPoolSize; ++i)
     {
-        SqlConnection * pConn = CreateConnection();
-        if(!pConn->Initialize(infoString))
+        SqlConnection* pConn = CreateConnection();
+        if (!pConn->Initialize(infoString))
         {
             delete pConn;
             return false;
@@ -136,9 +134,9 @@ bool Database::Initialize(const char * infoString, int nConns /*= 1*/)
         m_pQueryConnections.push_back(pConn);
     }
 
-    //create and initialize connection for async requests
+    // create and initialize connection for async requests
     m_pAsyncConn = CreateConnection();
-    if(!m_pAsyncConn->Initialize(infoString))
+    if (!m_pAsyncConn->Initialize(infoString))
         return false;
 
     m_pResultQueue = new SqlResultQueue;
@@ -150,27 +148,20 @@ bool Database::Initialize(const char * infoString, int nConns /*= 1*/)
 void Database::StopServer()
 {
     HaltDelayThread();
-    /*Delete objects*/
-    if(m_pResultQueue)
-    {
-        delete m_pResultQueue;
-        m_pResultQueue = NULL;
-    }
 
-    if(m_pAsyncConn)
-    {
-        delete m_pAsyncConn;
-        m_pAsyncConn = NULL;
-    }
+    delete m_pResultQueue;
+    delete m_pAsyncConn;
+
+    m_pResultQueue = nullptr;
+    m_pAsyncConn = nullptr;
 
     for (size_t i = 0; i < m_pQueryConnections.size(); ++i)
         delete m_pQueryConnections[i];
 
     m_pQueryConnections.clear();
-
 }
 
-SqlDelayThread * Database::CreateDelayThread()
+SqlDelayThread* Database::CreateDelayThread()
 {
     assert(m_pAsyncConn);
     return new SqlDelayThread(this, m_pAsyncConn);
@@ -180,20 +171,20 @@ void Database::InitDelayThread()
 {
     assert(!m_delayThread);
 
-    //New delay thread for delay execute
+    // New delay thread for delay execute
     m_threadBody = CreateDelayThread();              // will deleted at m_delayThread delete
-    m_delayThread = new ACE_Based::Thread(m_threadBody);
+    m_delayThread = new MaNGOS::Thread(m_threadBody);
 }
 
 void Database::HaltDelayThread()
 {
     if (!m_threadBody || !m_delayThread) return;
 
-    m_threadBody->Stop();                                   //Stop event
-    m_delayThread->wait();                                  //Wait for flush to DB
-    delete m_delayThread;                                   //This also deletes m_threadBody
-    m_delayThread = NULL;
-    m_threadBody = NULL;
+    m_threadBody->Stop();                                   // Stop event
+    m_delayThread->wait();                                  // Wait for flush to DB
+    delete m_delayThread;                                   // This also deletes m_threadBody
+    m_delayThread = nullptr;
+    m_threadBody = nullptr;
 }
 
 void Database::ThreadStart()
@@ -206,27 +197,27 @@ void Database::ThreadEnd()
 
 void Database::ProcessResultQueue()
 {
-    if(m_pResultQueue)
+    if (m_pResultQueue)
         m_pResultQueue->Update();
 }
 
 void Database::escape_string(std::string& str)
 {
-    if(str.empty())
+    if (str.empty())
         return;
 
-    char* buf = new char[str.size()*2+1];
-    //we don't care what connection to use - escape string will be the same
-    m_pQueryConnections[0]->escape_string(buf,str.c_str(),str.size());
+    char* buf = new char[str.size() * 2 + 1];
+    // we don't care what connection to use - escape string will be the same
+    m_pQueryConnections[0]->escape_string(buf, str.c_str(), str.size());
     str = buf;
     delete[] buf;
 }
 
-SqlConnection * Database::getQueryConnection()
+SqlConnection* Database::getQueryConnection()
 {
     int nCount = 0;
 
-    if(m_nQueryCounter == long(1 << 31))
+    if (m_nQueryCounter == long(1 << 31))
         m_nQueryCounter = 0;
     else
         nCount = ++m_nQueryCounter;
@@ -236,7 +227,7 @@ SqlConnection * Database::getQueryConnection()
 
 void Database::Ping()
 {
-    const char * sql = "SELECT 1";
+    const char* sql = "SELECT 1";
 
     {
         SqlConnection::Lock guard(m_pAsyncConn);
@@ -250,7 +241,7 @@ void Database::Ping()
     }
 }
 
-bool Database::PExecuteLog(const char * format,...)
+bool Database::PExecuteLog(const char* format, ...)
 {
     if (!format)
         return false;
@@ -258,26 +249,26 @@ bool Database::PExecuteLog(const char * format,...)
     va_list ap;
     char szQuery [MAX_QUERY_LEN];
     va_start(ap, format);
-    int res = vsnprintf( szQuery, MAX_QUERY_LEN, format, ap );
+    int res = vsnprintf(szQuery, MAX_QUERY_LEN, format, ap);
     va_end(ap);
 
-    if(res==-1)
+    if (res == -1)
     {
-        sLog.outError("SQL Query truncated (and not execute) for format: %s",format);
+        sLog.outError("SQL Query truncated (and not execute) for format: %s", format);
         return false;
     }
 
-    if( m_logSQL )
+    if (m_logSQL)
     {
         time_t curr;
         tm local;
         time(&curr);                                        // get current time_t value
-        local=*(localtime(&curr));                          // dereference and assign
+        local = *(localtime(&curr));                        // dereference and assign
         char fName[128];
-        sprintf( fName, "%04d-%02d-%02d_logSQL.sql", local.tm_year+1900, local.tm_mon+1, local.tm_mday );
+        sprintf(fName, "%04d-%02d-%02d_logSQL.sql", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday);
 
         FILE* log_file;
-        std::string logsDir_fname = m_logsDir+fName;
+        std::string logsDir_fname = m_logsDir + fName;
         log_file = fopen(logsDir_fname.c_str(), "a");
         if (log_file)
         {
@@ -287,66 +278,66 @@ bool Database::PExecuteLog(const char * format,...)
         else
         {
             // The file could not be opened
-            sLog.outError("SQL-Logging is disabled - Log file for the SQL commands could not be openend: %s",fName);
+            sLog.outError("SQL-Logging is disabled - Log file for the SQL commands could not be openend: %s", fName);
         }
     }
 
     return Execute(szQuery);
 }
 
-QueryResult* Database::PQuery(const char *format,...)
+QueryResult* Database::PQuery(const char* format, ...)
 {
-    if(!format) return NULL;
+    if (!format) return nullptr;
 
     va_list ap;
     char szQuery [MAX_QUERY_LEN];
     va_start(ap, format);
-    int res = vsnprintf( szQuery, MAX_QUERY_LEN, format, ap );
+    int res = vsnprintf(szQuery, MAX_QUERY_LEN, format, ap);
     va_end(ap);
 
-    if(res==-1)
+    if (res == -1)
     {
-        sLog.outError("SQL Query truncated (and not execute) for format: %s",format);
-        return false;
+        sLog.outError("SQL Query truncated (and not execute) for format: %s", format);
+        return nullptr;
     }
 
     return Query(szQuery);
 }
 
-QueryNamedResult* Database::PQueryNamed(const char *format,...)
+QueryNamedResult* Database::PQueryNamed(const char* format, ...)
 {
-    if(!format) return NULL;
+    if (!format) return nullptr;
 
     va_list ap;
     char szQuery [MAX_QUERY_LEN];
     va_start(ap, format);
-    int res = vsnprintf( szQuery, MAX_QUERY_LEN, format, ap );
+    int res = vsnprintf(szQuery, MAX_QUERY_LEN, format, ap);
     va_end(ap);
 
-    if(res==-1)
+    if (res == -1)
     {
-        sLog.outError("SQL Query truncated (and not execute) for format: %s",format);
-        return false;
+        sLog.outError("SQL Query truncated (and not execute) for format: %s", format);
+        return nullptr;
     }
 
     return QueryNamed(szQuery);
 }
 
-bool Database::Execute(const char *sql)
+bool Database::Execute(const char* sql)
 {
     if (!m_pAsyncConn)
         return false;
 
-    SqlTransaction * pTrans = m_TransStorage->get();
-    if(pTrans)
+    auto const pTrans = m_currentTransaction.get();
+    if (pTrans)
     {
-        //add SQL request to trans queue
+        // add SQL request to trans queue
         pTrans->DelayExecute(new SqlPlainRequest(sql));
     }
     else
     {
-        //if async execution is not available
-        if(!m_bAllowAsyncTransactions)
+        // if async execution is not available
+        if (!m_bAllowAsyncTransactions)
             return DirectExecute(sql);
 
         // Simple sql statement
@@ -356,7 +347,7 @@ bool Database::Execute(const char *sql)
     return true;
 }
 
-bool Database::PExecute(const char * format,...)
+bool Database::PExecute(const char* format, ...)
 {
     if (!format)
         return false;
@@ -364,19 +355,19 @@ bool Database::PExecute(const char * format,...)
     va_list ap;
     char szQuery [MAX_QUERY_LEN];
     va_start(ap, format);
-    int res = vsnprintf( szQuery, MAX_QUERY_LEN, format, ap );
+    int res = vsnprintf(szQuery, MAX_QUERY_LEN, format, ap);
     va_end(ap);
 
-    if(res==-1)
+    if (res == -1)
     {
-        sLog.outError("SQL Query truncated (and not execute) for format: %s",format);
+        sLog.outError("SQL Query truncated (and not execute) for format: %s", format);
         return false;
     }
 
     return Execute(szQuery);
 }
 
-bool Database::DirectPExecute(const char * format,...)
+bool Database::DirectPExecute(const char* format, ...)
 {
     if (!format)
         return false;
@@ -384,12 +375,12 @@ bool Database::DirectPExecute(const char * format,...)
     va_list ap;
     char szQuery [MAX_QUERY_LEN];
     va_start(ap, format);
-    int res = vsnprintf( szQuery, MAX_QUERY_LEN, format, ap );
+    int res = vsnprintf(szQuery, MAX_QUERY_LEN, format, ap);
     va_end(ap);
 
-    if(res==-1)
+    if (res == -1)
     {
-        sLog.outError("SQL Query truncated (and not execute) for format: %s",format);
+        sLog.outError("SQL Query truncated (and not execute) for format: %s", format);
         return false;
     }
 
@@ -401,27 +392,25 @@ bool Database::BeginTransaction()
     if (!m_pAsyncConn)
         return false;
 
-    //initiate transaction on current thread
-    //currently we do not support queued transactions
-    m_TransStorage->init();
-    return true;
+    MANGOS_ASSERT(!m_currentTransaction.get());   // if we will get a nested transaction request - we MUST fix code!!!
+
+    if (!m_currentTransaction.get())
+        m_currentTransaction.reset(new SqlTransaction);
+
+    return !!m_currentTransaction.get();
 }
 
 bool Database::CommitTransaction()
 {
-    if (!m_pAsyncConn)
+    if (!m_pAsyncConn || !m_currentTransaction.get())
         return false;
 
-    //check if we have pending transaction
-    if(!m_TransStorage->get())
-        return false;
-
-    //if async execution is not available
-    if(!m_bAllowAsyncTransactions)
+    // if async execution is not available
+    if (!m_bAllowAsyncTransactions)
         return CommitTransactionDirect();
 
-    //add SqlTransaction to the async queue
-    m_threadBody->Delay(m_TransStorage->detach());
+    // add SqlTransaction to the async queue
+    m_threadBody->Delay(m_currentTransaction.release());
     return true;
 }
 
@@ -430,12 +419,12 @@ bool Database::CommitTransactionDirect()
     if (!m_pAsyncConn)
         return false;
 
-    //check if we have pending transaction
-    if(!m_TransStorage->get())
+    // check if we have pending transaction
+    if (!m_currentTransaction.get())
         return false;
 
-    //directly execute SqlTransaction
-    SqlTransaction * pTrans = m_TransStorage->detach();
+    // directly execute SqlTransaction
+    auto const pTrans = m_currentTransaction.release();
     pTrans->Execute(m_pAsyncConn);
     delete pTrans;
 
@@ -447,20 +436,20 @@ bool Database::RollbackTransaction()
     if (!m_pAsyncConn)
         return false;
 
-    if(!m_TransStorage->get())
+    if (!m_currentTransaction.get())
         return false;
 
-    //remove scheduled transaction
-    m_TransStorage->reset();
+    // remove scheduled transaction
+    m_currentTransaction.reset();
 
     return true;
 }
 
-bool Database::CheckRequiredField( char const* table_name, char const* required_name )
+bool Database::CheckRequiredField(char const* table_name, char const* required_name)
 {
     // check required field
-    QueryResult* result = PQuery("SELECT %s FROM %s LIMIT 1",required_name,table_name);
-    if(result)
+    QueryResult* result = PQuery("SELECT %s FROM %s LIMIT 1", required_name, table_name);
+    if (result)
     {
         delete result;
         return true;
@@ -470,25 +459,25 @@ bool Database::CheckRequiredField( char const* table_name, char const* required_
 
     // search current required_* field in DB
     const char* db_name;
-    if(!strcmp(table_name, "db_version"))
+    if (!strcmp(table_name, "db_version"))
         db_name = "WORLD";
-    else if(!strcmp(table_name, "character_db_version"))
+    else if (!strcmp(table_name, "character_db_version"))
         db_name = "CHARACTER";
-    else if(!strcmp(table_name, "realmd_db_version"))
+    else if (!strcmp(table_name, "realmd_db_version"))
         db_name = "REALMD";
     else
         db_name = "UNKNOWN";
 
-    char const* req_sql_update_name = required_name+strlen("required_");
+    char const* req_sql_update_name = required_name + strlen("required_");
 
-    QueryNamedResult* result2 = PQueryNamed("SELECT * FROM %s LIMIT 1",table_name);
-    if(result2)
+    QueryNamedResult* result2 = PQueryNamed("SELECT * FROM %s LIMIT 1", table_name);
+    if (result2)
     {
         QueryFieldNames const& namesMap = result2->GetFieldNames();
         std::string reqName;
-        for(QueryFieldNames::const_iterator itr = namesMap.begin(); itr != namesMap.end(); ++itr)
+        for (QueryFieldNames::const_iterator itr = namesMap.begin(); itr != namesMap.end(); ++itr)
         {
-            if(itr->substr(0,9)=="required_")
+            if (itr->substr(0, 9) == "required_")
             {
                 reqName = *itr;
                 break;
@@ -497,15 +486,15 @@ bool Database::CheckRequiredField( char const* table_name, char const* required_
 
         delete result2;
 
-        std::string cur_sql_update_name = reqName.substr(strlen("required_"),reqName.npos);
+        std::string cur_sql_update_name = reqName.substr(strlen("required_"), reqName.npos);
 
-        if(!reqName.empty())
+        if (!reqName.empty())
         {
-            sLog.outErrorDb("The table `%s` in your [%s] database indicates that this database is out of date!",table_name,db_name);
+            sLog.outErrorDb("The table `%s` in your [%s] database indicates that this database is out of date!", table_name, db_name);
             sLog.outErrorDb();
-            sLog.outErrorDb("  [A] You have: --> `%s.sql`",cur_sql_update_name.c_str());
+            sLog.outErrorDb("  [A] You have: --> `%s.sql`", cur_sql_update_name.c_str());
             sLog.outErrorDb();
-            sLog.outErrorDb("  [B] You need: --> `%s.sql`",req_sql_update_name);
+            sLog.outErrorDb("  [B] You need: --> `%s.sql`", req_sql_update_name);
             sLog.outErrorDb();
             sLog.outErrorDb("You must apply all updates after [A] to [B] to use mangos with this database.");
             sLog.outErrorDb("These updates are included in the sql/updates folder.");
@@ -513,52 +502,52 @@ bool Database::CheckRequiredField( char const* table_name, char const* required_
         }
         else
         {
-            sLog.outErrorDb("The table `%s` in your [%s] database is missing its version info.",table_name,db_name);
+            sLog.outErrorDb("The table `%s` in your [%s] database is missing its version info.", table_name, db_name);
             sLog.outErrorDb("MaNGOS cannot find the version info needed to check that the db is up to date.");
             sLog.outErrorDb();
             sLog.outErrorDb("This revision of MaNGOS requires a database updated to:");
-            sLog.outErrorDb("`%s.sql`",req_sql_update_name);
+            sLog.outErrorDb("`%s.sql`", req_sql_update_name);
             sLog.outErrorDb();
 
-            if(!strcmp(db_name, "WORLD"))
+            if (!strcmp(db_name, "WORLD"))
                 sLog.outErrorDb("Post this error to your database provider forum or find a solution there.");
             else
-                sLog.outErrorDb("Reinstall your [%s] database with the included sql file in the sql folder.",db_name);
+                sLog.outErrorDb("Reinstall your [%s] database with the included sql file in the sql folder.", db_name);
         }
     }
     else
     {
-        sLog.outErrorDb("The table `%s` in your [%s] database is missing or corrupt.",table_name,db_name);
+        sLog.outErrorDb("The table `%s` in your [%s] database is missing or corrupt.", table_name, db_name);
         sLog.outErrorDb("MaNGOS cannot find the version info needed to check that the db is up to date.");
         sLog.outErrorDb();
         sLog.outErrorDb("This revision of mangos requires a database updated to:");
-        sLog.outErrorDb("`%s.sql`",req_sql_update_name);
+        sLog.outErrorDb("`%s.sql`", req_sql_update_name);
         sLog.outErrorDb();
 
-        if(!strcmp(db_name, "WORLD"))
+        if (!strcmp(db_name, "WORLD"))
             sLog.outErrorDb("Post this error to your database provider forum or find a solution there.");
         else
-            sLog.outErrorDb("Reinstall your [%s] database with the included sql file in the sql folder.",db_name);
+            sLog.outErrorDb("Reinstall your [%s] database with the included sql file in the sql folder.", db_name);
     }
 
     return false;
 }
 
-bool Database::ExecuteStmt( const SqlStatementID& id, SqlStmtParameters * params )
+bool Database::ExecuteStmt(const SqlStatementID& id, SqlStmtParameters* params)
 {
     if (!m_pAsyncConn)
         return false;
 
-    SqlTransaction * pTrans = m_TransStorage->get();
-    if(pTrans)
+    auto const pTrans = m_currentTransaction.get();
+    if (pTrans)
     {
-        //add SQL request to trans queue
+        // add SQL request to trans queue
         pTrans->DelayExecute(new SqlPreparedRequest(id.ID(), params));
     }
     else
     {
-        //if async execution is not available
-        if(!m_bAllowAsyncTransactions)
+        // if async execution is not available
+        if (!m_bAllowAsyncTransactions)
             return DirectExecuteStmt(id, params);
 
         // Simple sql statement
@@ -568,29 +557,31 @@ bool Database::ExecuteStmt( const SqlStatementID& id, SqlStmtParameters * params
     return true;
 }
 
-bool Database::DirectExecuteStmt( const SqlStatementID& id, SqlStmtParameters * params )
+bool Database::DirectExecuteStmt(const SqlStatementID& id, SqlStmtParameters* params)
 {
     MANGOS_ASSERT(params);
-    std::auto_ptr<SqlStmtParameters> p(params);
-    //execute statement
+
+    // execute statement
     SqlConnection::Lock _guard(getAsyncConnection());
-    return _guard->ExecuteStmt(id.ID(), *params);
+    bool result = _guard->ExecuteStmt(id.ID(), *params);
+    delete params;
+    return result;
 }
 
-SqlStatement Database::CreateStatement(SqlStatementID& index, const char * fmt )
+SqlStatement Database::CreateStatement(SqlStatementID& index, const char* fmt)
 {
     int nId = -1;
-    //check if statement ID is initialized
-    if(!index.initialized())
+    // check if statement ID is initialized
+    if (!index.initialized())
     {
-        //convert to lower register
+        // convert to lower register
         std::string szFmt(fmt);
-        //count input parameters
+        // count input parameters
         int nParams = std::count(szFmt.begin(), szFmt.end(), '?');
-        //find existing or add a new record in registry
+        // find existing or add a new record in registry
         LOCK_GUARD _guard(m_stmtGuard);
         PreparedStmtRegistry::const_iterator iter = m_stmtRegistry.find(szFmt);
-        if(iter == m_stmtRegistry.end())
+        if (iter == m_stmtRegistry.end())
         {
             nId = ++m_iStmtIndex;
             m_stmtRegistry[szFmt] = nId;
@@ -598,7 +589,7 @@ SqlStatement Database::CreateStatement(SqlStatementID& index, const char * fmt )
         else
             nId = iter->second;
 
-        //save initialized statement index info
+        // save initialized statement index info
         index.init(nId, nParams);
     }
 
@@ -609,44 +600,16 @@ std::string Database::GetStmtString(const int stmtId) const
 {
     LOCK_GUARD _guard(m_stmtGuard);
 
-    if(stmtId == -1 || stmtId > m_iStmtIndex)
+    if (stmtId == -1 || stmtId > m_iStmtIndex)
         return std::string();
 
     PreparedStmtRegistry::const_iterator iter_last = m_stmtRegistry.end();
-    for(PreparedStmtRegistry::const_iterator iter = m_stmtRegistry.begin(); iter != iter_last; ++iter)
+    for (PreparedStmtRegistry::const_iterator iter = m_stmtRegistry.begin(); iter != iter_last; ++iter)
     {
-        if(iter->second == stmtId)
+        if (iter->second == stmtId)
             return iter->first;
     }
 
     return std::string();
 }
 
-//HELPER CLASSES AND FUNCTIONS
-Database::TransHelper::~TransHelper()
-{
-    reset();
-}
-
-SqlTransaction * Database::TransHelper::init()
-{
-    MANGOS_ASSERT(!m_pTrans);   //if we will get a nested transaction request - we MUST fix code!!!
-    m_pTrans = new SqlTransaction;
-    return m_pTrans;
-}
-
-SqlTransaction * Database::TransHelper::detach()
-{
-    SqlTransaction * pRes = m_pTrans;
-    m_pTrans = NULL;
-    return pRes;
-}
-
-void Database::TransHelper::reset()
-{
-    if(m_pTrans)
-    {
-        delete m_pTrans;
-        m_pTrans = NULL;
-    }
-}

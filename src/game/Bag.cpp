@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #include "Bag.h"
 #include "ObjectMgr.h"
 #include "Database/DatabaseEnv.h"
-#include "Log.h"
 #include "UpdateData.h"
 
 Bag::Bag(): Item()
@@ -35,8 +34,7 @@ Bag::Bag(): Item()
 Bag::~Bag()
 {
     for (int i = 0; i < MAX_BAG_SIZE; ++i)
-        if (m_bagslot[i])
-            delete m_bagslot[i];
+        delete m_bagslot[i];
 }
 
 void Bag::AddToWorld()
@@ -83,7 +81,7 @@ bool Bag::Create(uint32 guidlow, uint32 itemid, Player const* owner)
     for (uint8 i = 0; i < MAX_BAG_SIZE; ++i)
     {
         SetGuidValue(CONTAINER_FIELD_SLOT_1 + (i * 2), ObjectGuid());
-        m_bagslot[i] = NULL;
+        m_bagslot[i] = nullptr;
     }
 
     return true;
@@ -103,11 +101,9 @@ bool Bag::LoadFromDB(uint32 guidLow, Field* fields, ObjectGuid ownerGuid)
     for (int i = 0; i < MAX_BAG_SIZE; ++i)
     {
         SetGuidValue(CONTAINER_FIELD_SLOT_1 + (i * 2), ObjectGuid());
-        if (m_bagslot[i])
-        {
-            delete m_bagslot[i];
-            m_bagslot[i] = NULL;
-        }
+
+        delete m_bagslot[i];
+        m_bagslot[i] = nullptr;
     }
 
     return true;
@@ -132,18 +128,18 @@ uint32 Bag::GetFreeSlots() const
     return slots;
 }
 
-void Bag::RemoveItem(uint8 slot, bool /*update*/)
+void Bag::RemoveItem(uint8 slot)
 {
     MANGOS_ASSERT(slot < MAX_BAG_SIZE);
 
     if (m_bagslot[slot])
-        m_bagslot[slot]->SetContainer(NULL);
+        m_bagslot[slot]->SetContainer(nullptr);
 
-    m_bagslot[slot] = NULL;
+    m_bagslot[slot] = nullptr;
     SetGuidValue(CONTAINER_FIELD_SLOT_1 + (slot * 2), ObjectGuid());
 }
 
-void Bag::StoreItem(uint8 slot, Item* pItem, bool /*update*/)
+void Bag::StoreItem(uint8 slot, Item* pItem)
 {
     MANGOS_ASSERT(slot < MAX_BAG_SIZE);
 
@@ -183,7 +179,7 @@ Item* Bag::GetItemByEntry(uint32 item) const
         if (m_bagslot[i] && m_bagslot[i]->GetEntry() == item)
             return m_bagslot[i];
 
-    return NULL;
+    return nullptr;
 }
 
 Item* Bag::GetItemByLimitedCategory(uint32 limitedCategory) const
@@ -192,7 +188,7 @@ Item* Bag::GetItemByLimitedCategory(uint32 limitedCategory) const
         if (m_bagslot[i] && m_bagslot[i]->GetProto()->ItemLimitCategory == limitedCategory)
             return m_bagslot[i];
 
-    return NULL;
+    return nullptr;
 }
 
 uint32 Bag::GetItemCount(uint32 item, Item* eItem) const
@@ -219,7 +215,7 @@ uint32 Bag::GetItemCountWithLimitCategory(uint32 limitCategory, Item* eItem) con
 
     for (uint32 i = 0; i < GetBagSize(); ++i)
         if (m_bagslot[i])
-            if (m_bagslot[i] != eItem && m_bagslot[i]->GetProto()->ItemLimitCategory == limitCategory )
+            if (m_bagslot[i] != eItem && m_bagslot[i]->GetProto()->ItemLimitCategory == limitCategory)
                 count += m_bagslot[i]->GetCount();
 
     return count;
@@ -228,7 +224,7 @@ uint32 Bag::GetItemCountWithLimitCategory(uint32 limitCategory, Item* eItem) con
 uint8 Bag::GetSlotByItemGUID(ObjectGuid guid) const
 {
     for (uint32 i = 0; i < GetBagSize(); ++i)
-        if (m_bagslot[i] != 0)
+        if (m_bagslot[i])
             if (m_bagslot[i]->GetObjectGuid() == guid)
                 return i;
 
@@ -240,5 +236,5 @@ Item* Bag::GetItemByPos(uint8 slot) const
     if (slot < GetBagSize())
         return m_bagslot[slot];
 
-    return NULL;
+    return nullptr;
 }

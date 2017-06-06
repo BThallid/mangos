@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 
 char const* ObjectGuid::GetTypeName(HighGuid high)
 {
-    switch(high)
+    switch (high)
     {
         case HIGHGUID_ITEM:         return "Item";
         case HIGHGUID_PLAYER:       return "Player";
@@ -34,7 +34,7 @@ char const* ObjectGuid::GetTypeName(HighGuid high)
         case HIGHGUID_UNIT:         return "Creature";
         case HIGHGUID_PET:          return "Pet";
         case HIGHGUID_VEHICLE:      return "Vehicle";
-        case HIGHGUID_DYNAMICOBJECT:return "DynObject";
+        case HIGHGUID_DYNAMICOBJECT: return "DynObject";
         case HIGHGUID_CORPSE:       return "Corpse";
         case HIGHGUID_MO_TRANSPORT: return "MoTransport";
         case HIGHGUID_INSTANCE:     return "InstanceID";
@@ -66,9 +66,9 @@ std::string ObjectGuid::GetString() const
 template<HighGuid high>
 uint32 ObjectGuidGenerator<high>::Generate()
 {
-    if (m_nextGuid >= ObjectGuid::GetMaxCounter(high)-1)
+    if (m_nextGuid >= ObjectGuid::GetMaxCounter(high) - 1)
     {
-        sLog.outError("%s guid overflow!! Can't continue, shutting down server. ",ObjectGuid::GetTypeName(high));
+        sLog.outError("%s guid overflow!! Can't continue, shutting down server. ", ObjectGuid::GetTypeName(high));
         World::StopNow(ERROR_EXIT_CODE);
     }
     return m_nextGuid++;
@@ -80,7 +80,7 @@ ByteBuffer& operator<< (ByteBuffer& buf, ObjectGuid const& guid)
     return buf;
 }
 
-ByteBuffer &operator>>(ByteBuffer& buf, ObjectGuid& guid)
+ByteBuffer& operator>>(ByteBuffer& buf, ObjectGuid& guid)
 {
     guid.Set(buf.read<uint64>());
     return buf;
@@ -92,7 +92,7 @@ ByteBuffer& operator<< (ByteBuffer& buf, PackedGuid const& guid)
     return buf;
 }
 
-ByteBuffer &operator>>(ByteBuffer& buf, PackedGuidReader const& guid)
+ByteBuffer& operator>>(ByteBuffer& buf, PackedGuidReader const& guid)
 {
     guid.m_guidPtr->Set(buf.readPackGUID());
     return buf;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #ifndef __MANGOS_SOCIALMGR_H
 #define __MANGOS_SOCIALMGR_H
 
-#include "Policies/Singleton.h"
 #include "Database/DatabaseEnv.h"
 #include "ObjectGuid.h"
 
@@ -54,25 +53,22 @@ struct FriendInfo
     uint32 Class;
     std::string Note;
 
-    FriendInfo()
-    {
-        Status = FRIEND_STATUS_OFFLINE;
-        Flags = 0;
-        Area = 0;
-        Level = 0;
-        Class = 0;
-        Note = "";
-    }
+    FriendInfo() :
+        Status(FRIEND_STATUS_OFFLINE),
+        Flags(0),
+        Area(0),
+        Level(0),
+        Class(0)
+    {}
 
-    FriendInfo(uint32 flags, const std::string& note)
-    {
-        Status = FRIEND_STATUS_OFFLINE;
-        Flags = flags;
-        Area = 0;
-        Level = 0;
-        Class = 0;
-        Note = note;
-    }
+    FriendInfo(uint32 flags, const std::string& note) :
+        Status(FRIEND_STATUS_OFFLINE),
+        Flags(flags),
+        Area(0),
+        Level(0),
+        Class(0),
+        Note(note)
+    {}
 };
 
 typedef std::map<uint32, FriendInfo> PlayerSocialMap;
@@ -115,7 +111,7 @@ enum FriendsResult
 
 class PlayerSocial
 {
-    friend class SocialMgr;
+        friend class SocialMgr;
     public:
         PlayerSocial();
         ~PlayerSocial();
@@ -143,13 +139,13 @@ class SocialMgr
         // Misc
         void RemovePlayerSocial(uint32 guid) { m_socialMap.erase(guid); }
 
-        void GetFriendInfo(Player *player, uint32 friendGUID, FriendInfo &friendInfo);
+        void GetFriendInfo(Player* player, uint32 friendGUID, FriendInfo& friendInfo) const;
         // Packet management
-        void MakeFriendStatusPacket(FriendsResult result, uint32 friend_guid, WorldPacket *data);
-        void SendFriendStatus(Player *player, FriendsResult result, ObjectGuid friend_guid, bool broadcast);
-        void BroadcastToFriendListers(Player *player, WorldPacket *packet);
+    static void MakeFriendStatusPacket(FriendsResult result, uint32 friend_guid, WorldPacket& data);
+        void SendFriendStatus(Player* player, FriendsResult result, ObjectGuid friend_guid, bool broadcast);
+        void BroadcastToFriendListers(Player* player, WorldPacket const& packet);
         // Loading
-        PlayerSocial *LoadFromDB(QueryResult *result, ObjectGuid guid);
+        PlayerSocial* LoadFromDB(QueryResult* result, ObjectGuid guid);
     private:
         SocialMap m_socialMap;
 };

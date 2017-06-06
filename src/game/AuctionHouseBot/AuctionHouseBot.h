@@ -1,11 +1,28 @@
+/*
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #ifndef AUCTION_HOUSE_BOT_H
 #define AUCTION_HOUSE_BOT_H
 
-#include "../World.h"
 #include "Config/Config.h"
-#include "../AuctionHouseMgr.h"
-#include "../SharedDefines.h"
-#include "../Item.h"
+#include "AuctionHouseMgr.h"
+#include "SharedDefines.h"
+#include "Item.h"
 
 // shadow of ItemQualities with skipped ITEM_QUALITY_HEIRLOOM, anything after ITEM_QUALITY_ARTIFACT(6) in fact
 enum AuctionQuality
@@ -109,20 +126,19 @@ class AuctionBotConfig
     public:
         AuctionBotConfig();
 
-        void        SetConfigFileName(char const* filename) { m_configFileName = filename; }
+        void        SetConfigFileName(const std::string &filename) { m_configFileName = filename; }
         bool        Initialize();
         const char* GetAHBotIncludes() const { return m_AHBotIncludes.c_str(); }
         const char* GetAHBotExcludes() const { return m_AHBotExcludes.c_str(); }
 
         uint32      getConfig(AuctionBotConfigUInt32Values index) const { return m_configUint32Values[index]; }
         bool        getConfig(AuctionBotConfigBoolValues index) const { return m_configBoolValues[index]; }
-        void        setConfig(AuctionBotConfigBoolValues index, bool value) { m_configBoolValues[index]=value; }
-        void        setConfig(AuctionBotConfigUInt32Values index, uint32 value) { m_configUint32Values[index]=value; }
+        void        setConfig(AuctionBotConfigBoolValues index, bool value) { m_configBoolValues[index] = value; }
+        void        setConfig(AuctionBotConfigUInt32Values index, uint32 value) { m_configUint32Values[index] = value; }
 
         uint32 getConfigItemAmountRatio(AuctionHouseType houseType) const;
         bool getConfigBuyerEnabled(AuctionHouseType houseType) const;
         uint32 getConfigItemQualityAmount(AuctionQuality quality) const;
-
 
         uint32      GetItemPerCycleBoost() const { return m_ItemsPerCycleBoost; }
         uint32      GetItemPerCycleNormal() const { return m_ItemsPerCycleNormal; }
@@ -160,8 +176,8 @@ class AuctionBotAgent
         AuctionBotAgent() {}
         virtual ~AuctionBotAgent() {}
     public:
-        virtual bool Initialize() =0;
-        virtual bool Update(AuctionHouseType houseType) =0;
+        virtual bool Initialize() = 0;
+        virtual bool Update(AuctionHouseType houseType) = 0;
 };
 
 struct AuctionHouseBotStatusInfoPerType
@@ -184,14 +200,14 @@ class AuctionHouseBot
         void Initialize();
 
         // Followed method is mainly used by level3.cpp for ingame/console command
-        void SetItemsRatio(uint32 al, uint32 ho, uint32 ne);
-        void SetItemsRatioForHouse(AuctionHouseType house, uint32 val);
-        void SetItemsAmount(uint32 (&vals) [MAX_AUCTION_QUALITY]);
-        void SetItemsAmountForQuality(AuctionQuality quality, uint32 val);
+        void SetItemsRatio(uint32 al, uint32 ho, uint32 ne) const;
+        void SetItemsRatioForHouse(AuctionHouseType house, uint32 val) const;
+        void SetItemsAmount(uint32(&vals) [MAX_AUCTION_QUALITY]) const;
+        void SetItemsAmountForQuality(AuctionQuality quality, uint32 val) const;
         bool ReloadAllConfig();
-        void Rebuild(bool all);
+        void Rebuild(bool all) const;
 
-        void PrepareStatusInfos(AuctionHouseBotStatusInfo& statusInfo);
+        void PrepareStatusInfos(AuctionHouseBotStatusInfo& statusInfo) const;
     private:
         void InitilizeAgents();
 

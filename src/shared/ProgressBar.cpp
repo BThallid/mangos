@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,24 +35,12 @@ BarGoLink::BarGoLink(int row_count)
     init(row_count);
 }
 
-BarGoLink::BarGoLink(uint32 row_count)
-{
-    MANGOS_ASSERT(row_count < (uint32)ACE_INT32_MAX);
-    init((int)row_count);
-}
-
-BarGoLink::BarGoLink(uint64 row_count)
-{
-    MANGOS_ASSERT(row_count < (uint64)ACE_INT32_MAX);
-    init((int)row_count);
-}
-
 BarGoLink::~BarGoLink()
 {
     if (!m_showOutput)
         return;
 
-    printf( "\n" );
+    printf("\n");
     fflush(stdout);
 }
 
@@ -66,17 +54,17 @@ void BarGoLink::init(int row_count)
     if (!m_showOutput)
         return;
 
-    #ifdef _WIN32
-    printf( "\x3D" );
-    #else
-    printf( "[" );
-    #endif
-    for ( int i = 0; i < indic_len; i++ ) printf( empty );
-    #ifdef _WIN32
-    printf( "\x3D 0%%\r\x3D" );
-    #else
-    printf( "] 0%%\r[" );
-    #endif
+#ifdef _WIN32
+    printf("\x3D");
+#else
+    printf("[");
+#endif
+    for (int i = 0; i < indic_len; ++i) printf(empty);
+#ifdef _WIN32
+    printf("\x3D 0%%\r\x3D");
+#else
+    printf("] 0%%\r[");
+#endif
     fflush(stdout);
 }
 
@@ -87,24 +75,24 @@ void BarGoLink::step()
 
     int i, n;
 
-    if ( num_rec == 0 ) return;
+    if (num_rec == 0) return;
     ++rec_no;
     n = rec_no * indic_len / num_rec;
-    if ( n != rec_pos )
+    if (n != rec_pos)
     {
-        #ifdef _WIN32
-        printf( "\r\x3D" );
-        #else
-        printf( "\r[" );
-        #endif
-        for ( i = 0; i < n; i++ ) printf( full );
-        for ( ; i < indic_len; i++ ) printf( empty );
-        float percent = (((float)n/(float)indic_len)*100);
-        #ifdef _WIN32
-        printf( "\x3D %i%%  \r\x3D", (int)percent);
-        #else
-        printf( "] %i%%  \r[", (int)percent);
-        #endif
+#ifdef _WIN32
+        printf("\r\x3D");
+#else
+        printf("\r[");
+#endif
+        for (i = 0; i < n; ++i) printf(full);
+        for (; i < indic_len; ++i) printf(empty);
+        float percent = (((float)n / (float)indic_len) * 100);
+#ifdef _WIN32
+        printf("\x3D %i%%  \r\x3D", (int)percent);
+#else
+        printf("] %i%%  \r[", (int)percent);
+#endif
         fflush(stdout);
 
         rec_pos = n;

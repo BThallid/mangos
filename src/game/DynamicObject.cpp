@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,17 +17,15 @@
  */
 
 #include "Common.h"
-#include "UpdateMask.h"
-#include "Opcodes.h"
 #include "World.h"
 #include "ObjectAccessor.h"
-#include "Database/DatabaseEnv.h"
 #include "GridNotifiers.h"
 #include "CellImpl.h"
 #include "GridNotifiersImpl.h"
 #include "SpellMgr.h"
+#include "DBCStores.h"
 
-DynamicObject::DynamicObject() : WorldObject()
+DynamicObject::DynamicObject() : WorldObject(), m_spellId(0), m_effIndex(), m_aliveDuration(0), m_radius(0), m_positive(false)
 {
     m_objectType |= TYPEMASK_DYNAMICOBJECT;
     m_objectTypeId = TYPEID_DYNAMICOBJECT;
@@ -40,7 +38,7 @@ DynamicObject::DynamicObject() : WorldObject()
 void DynamicObject::AddToWorld()
 {
     ///- Register the dynamicObject for guid lookup
-    if(!IsInWorld())
+    if (!IsInWorld())
         GetMap()->GetObjectsStore().insert<DynamicObject>(GetObjectGuid(), (DynamicObject*)this);
 
     Object::AddToWorld();
@@ -49,24 +47,24 @@ void DynamicObject::AddToWorld()
 void DynamicObject::RemoveFromWorld()
 {
     ///- Remove the dynamicObject from the accessor
-    if(IsInWorld())
+    if (IsInWorld())
     {
-        GetMap()->GetObjectsStore().erase<DynamicObject>(GetObjectGuid(), (DynamicObject*)NULL);
+        GetMap()->GetObjectsStore().erase<DynamicObject>(GetObjectGuid(), (DynamicObject*)nullptr);
         GetViewPoint().Event_RemovedFromWorld();
     }
 
     Object::RemoveFromWorld();
 }
 
-bool DynamicObject::Create(uint32 guidlow, Unit *caster, uint32 spellId, SpellEffectIndex effIndex, float x, float y, float z, int32 duration, float radius, DynamicObjectType type)
+bool DynamicObject::Create(uint32 guidlow, Unit* caster, uint32 spellId, SpellEffectIndex effIndex, float x, float y, float z, int32 duration, float radius, DynamicObjectType type)
 {
     WorldObject::_Create(guidlow, HIGHGUID_DYNAMICOBJECT, caster->GetPhaseMask());
     SetMap(caster->GetMap());
     Relocate(x, y, z, 0);
 
-    if(!IsPositionValid())
+    if (!IsPositionValid())
     {
-        sLog.outError("DynamicObject (spell %u eff %u) not created. Suggested coordinates isn't valid (X: %f Y: %f)",spellId,effIndex,GetPositionX(),GetPositionY());
+        sLog.outError("DynamicObject (spell %u eff %u) not created. Suggested coordinates isn't valid (X: %f Y: %f)", spellId, effIndex, GetPositionX(), GetPositionY());
         return false;
     }
 
@@ -92,10 +90,10 @@ bool DynamicObject::Create(uint32 guidlow, Unit *caster, uint32 spellId, SpellEf
     SetFloatValue(DYNAMICOBJECT_RADIUS, radius);
     SetUInt32Value(DYNAMICOBJECT_CASTTIME, WorldTimer::getMSTime());    // new 2.4.0
 
-    SpellEntry const* spellProto = sSpellStore.LookupEntry(spellId);
+    SpellEntry const* spellProto = sSpellTemplate.LookupEntry<SpellEntry>(spellId);
     if (!spellProto)
     {
-        sLog.outError("DynamicObject (spell %u) not created. Spell not exist!", spellId, GetPositionX(), GetPositionY());
+        sLog.outError("DynamicObject (spell %u) not created. Spell not exist!", spellId);
         return false;
     }
 
@@ -114,11 +112,11 @@ Unit* DynamicObject::GetCaster() const
     return ObjectAccessor::GetUnit(*this, GetCasterGuid());
 }
 
-void DynamicObject::Update(uint32 update_diff, uint32 p_time)
+void DynamicObject::Update(uint32 /*update_diff*/, uint32 p_time)
 {
     // caster can be not in world at time dynamic object update, but dynamic object not yet deleted in Unit destructor
     Unit* caster = GetCaster();
-    if(!caster)
+    if (!caster)
     {
         Delete();
         return;
@@ -126,20 +124,20 @@ void DynamicObject::Update(uint32 update_diff, uint32 p_time)
 
     bool deleteThis = false;
 
-    if(m_aliveDuration > int32(p_time))
+    if (m_aliveDuration > int32(p_time))
         m_aliveDuration -= p_time;
     else
         deleteThis = true;
 
     // have radius and work as persistent effect
-    if(m_radius)
+    if (m_radius)
     {
         // TODO: make a timer and update this in larger intervals
         MaNGOS::DynamicObjectUpdater notifier(*this, caster, m_positive);
         Cell::VisitAllObjects(this, notifier, m_radius);
     }
 
-    if(deleteThis)
+    if (deleteThis)
     {
         caster->RemoveDynObjectWithGUID(GetObjectGuid());
         Delete();
@@ -155,12 +153,12 @@ void DynamicObject::Delete()
 void DynamicObject::Delay(int32 delaytime)
 {
     m_aliveDuration -= delaytime;
-    for(AffectedSet::iterator iter = m_affected.begin(); iter != m_affected.end(); )
+    for (GuidSet::iterator iter = m_affected.begin(); iter != m_affected.end();)
     {
-        Unit *target = GetMap()->GetUnit((*iter));
+        Unit* target = GetMap()->GetUnit((*iter));
         if (target)
         {
-            SpellAuraHolder *holder = target->GetSpellAuraHolder(m_spellId, GetCasterGuid());
+            SpellAuraHolder* holder = target->GetSpellAuraHolder(m_spellId, GetCasterGuid());
             if (!holder)
             {
                 ++iter;
@@ -204,7 +202,7 @@ bool DynamicObject::isVisibleForInState(Player const* u, WorldObject const* view
     return IsWithinDistInMap(viewPoint, GetMap()->GetVisibilityDistance() + (inVisibleList ? World::GetVisibleObjectGreyDistance() : 0.0f), false);
 }
 
-bool DynamicObject::IsHostileTo( Unit const* unit ) const
+bool DynamicObject::IsHostileTo(Unit const* unit) const
 {
     if (Unit* owner = GetCaster())
         return owner->IsHostileTo(unit);
@@ -212,7 +210,7 @@ bool DynamicObject::IsHostileTo( Unit const* unit ) const
         return false;
 }
 
-bool DynamicObject::IsFriendlyTo( Unit const* unit ) const
+bool DynamicObject::IsFriendlyTo(Unit const* unit) const
 {
     if (Unit* owner = GetCaster())
         return owner->IsFriendlyTo(unit);

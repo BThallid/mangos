@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,8 +75,8 @@ void EventProcessor::KillAllEvents(bool force)
         {
             delete i_old->second;
 
-            if (!force)                                      // need per-element cleanup
-                m_events.erase (i_old);
+            if (!force)                                     // need per-element cleanup
+                m_events.erase(i_old);
         }
     }
 
@@ -94,7 +94,7 @@ void EventProcessor::AddEvent(BasicEvent* Event, uint64 e_time, bool set_addtime
     m_events.insert(std::pair<uint64, BasicEvent*>(e_time, Event));
 }
 
-uint64 EventProcessor::CalculateTime(uint64 t_offset)
+uint64 EventProcessor::CalculateTime(uint64 t_offset) const
 {
     return m_time + t_offset;
 }

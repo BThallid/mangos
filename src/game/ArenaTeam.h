@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -120,7 +120,7 @@ class ArenaTeam
         ~ArenaTeam();
 
         bool Create(ObjectGuid captainGuid, ArenaType type, std::string arenaTeamName);
-        void Disband(WorldSession *session);
+        void Disband(WorldSession* session);
 
         typedef std::list<ArenaTeamMember> MemberList;
 
@@ -159,7 +159,7 @@ class ArenaTeam
                 if (itr->guid == guid)
                     return &(*itr);
 
-            return NULL;
+            return nullptr;
         }
 
         ArenaTeamMember* GetMember(const std::string& name)
@@ -168,44 +168,46 @@ class ArenaTeam
                 if (itr->name == name)
                     return &(*itr);
 
-            return NULL;
+            return nullptr;
         }
 
         bool IsFighting() const;
 
-        bool LoadArenaTeamFromDB(QueryResult *arenaTeamDataResult);
-        bool LoadMembersFromDB(QueryResult *arenaTeamMembersResult);
-        void LoadStatsFromDB(uint32 ArenaTeamId);
+        bool LoadArenaTeamFromDB(QueryResult* arenaTeamDataResult);
+        bool LoadMembersFromDB(QueryResult* arenaTeamMembersResult);
 
         void SaveToDB();
 
-        void BroadcastPacket(WorldPacket *packet);
+        void BroadcastPacket(WorldPacket const& packet);
 
-        void BroadcastEvent(ArenaTeamEvents event, ObjectGuid guid, char const* str1 = NULL, char const* str2 = NULL, char const* str3 = NULL);
-        void BroadcastEvent(ArenaTeamEvents event, char const* str1 = NULL, char const* str2 = NULL, char const* str3 = NULL)
+        void BroadcastEvent(ArenaTeamEvents event, ObjectGuid guid, char const* str1 = nullptr, char const* str2 = nullptr, char const* str3 = nullptr);
+        void BroadcastEvent(ArenaTeamEvents event, char const* str1 = nullptr, char const* str2 = nullptr, char const* str3 = nullptr)
         {
             BroadcastEvent(event, ObjectGuid(), str1, str2, str3);
         }
 
-        void Roster(WorldSession *session);
-        void Query(WorldSession *session);
-        void Stats(WorldSession *session);
-        void InspectStats(WorldSession *session, ObjectGuid guid);
+        void Roster(WorldSession* session);
+        void Query(WorldSession* session) const;
+        void Stats(WorldSession* session) const;
+        void InspectStats(WorldSession* session, ObjectGuid guid);
 
         uint32 GetPoints(uint32 MemberRating);
-        float GetChanceAgainst(uint32 own_rating, uint32 enemy_rating);
+        float GetChanceAgainst(uint32 own_rating, uint32 enemy_rating) const;
         int32 WonAgainst(uint32 againstRating);
-        void MemberWon(Player * plr, uint32 againstRating);
+        void MemberWon(Player* plr, uint32 againstRating);
         int32 LostAgainst(uint32 againstRating);
-        void MemberLost(Player * plr, uint32 againstRating);
+        void MemberLost(Player* plr, uint32 againstRating);
         void OfflineMemberLost(ObjectGuid guid, uint32 againstRating);
 
-        void UpdateArenaPointsHelper(std::map<uint32, uint32> & PlayerPoints);
+        void UpdateArenaPointsHelper(std::map<uint32, uint32>& PlayerPoints);
 
         void NotifyStatsChanged();
 
         void FinishWeek();
         void FinishGame(int32 mod);
+
+        // Calendar
+        void MassInviteToEvent(WorldSession* session);
 
     protected:
 

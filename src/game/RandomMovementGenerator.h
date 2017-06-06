@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,25 +21,30 @@
 
 #include "MovementGenerator.h"
 
+// define chance for creature to not stop after reaching a waypoint
+#define MOVEMENT_RANDOM_MMGEN_CHANCE_NO_BREAK 30
+
 template<class T>
-class MANGOS_DLL_SPEC RandomMovementGenerator
-: public MovementGeneratorMedium< T, RandomMovementGenerator<T> >
+class RandomMovementGenerator
+    : public MovementGeneratorMedium< T, RandomMovementGenerator<T> >
 {
     public:
-        explicit RandomMovementGenerator(const Unit &) : i_nextMoveTime(0) {}
+        explicit RandomMovementGenerator(const Creature&);
+        explicit RandomMovementGenerator(float x, float y, float z, float radius, float verticalZ = 0.0f) :
+            i_nextMoveTime(0), i_x(x), i_y(y), i_z(z), i_radius(radius), i_verticalZ(verticalZ) {}
 
-        void _setRandomLocation(T &);
-        void Initialize(T &);
-        void Finalize(T &);
-        void Interrupt(T &);
-        void Reset(T &);
-        bool Update(T &, const uint32 &);
-        MovementGeneratorType GetMovementGeneratorType() const { return RANDOM_MOTION_TYPE; }
-
-        bool GetResetPosition(T&, float& x, float& y, float& z);
+        void _setRandomLocation(T&);
+        void Initialize(T&);
+        void Finalize(T&);
+        void Interrupt(T&);
+        void Reset(T&);
+        bool Update(T&, const uint32&);
+        MovementGeneratorType GetMovementGeneratorType() const override { return RANDOM_MOTION_TYPE; }
     private:
         ShortTimeTracker i_nextMoveTime;
-        uint32 i_nextMove;
+        float i_x, i_y, i_z;
+        float i_radius;
+        float i_verticalZ;
 };
 
 #endif

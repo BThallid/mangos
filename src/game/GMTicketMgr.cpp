@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
 #include "ProgressBar.h"
-#include "Policies/SingletonImp.h"
+#include "Policies/Singleton.h"
 #include "Player.h"
 
 INSTANTIATE_SINGLETON_1(GMTicketMgr);
@@ -32,18 +32,16 @@ void GMTicketMgr::LoadGMTickets()
 {
     m_GMTicketMap.clear();                                  // For reload case
 
-    QueryResult *result = CharacterDatabase.Query(
-        //      0     1            2              3                                  4
-        "SELECT guid, ticket_text, response_text, UNIX_TIMESTAMP(ticket_lastchange), ticket_id FROM character_ticket ORDER BY ticket_id ASC");
+    QueryResult* result = CharacterDatabase.Query(
+                              //      0     1            2              3                                  4
+                              "SELECT guid, ticket_text, response_text, UNIX_TIMESTAMP(ticket_lastchange), ticket_id FROM character_ticket ORDER BY ticket_id ASC");
 
-    if( !result )
+    if (!result)
     {
         BarGoLink bar(1);
-
         bar.step();
-
-        sLog.outString();
         sLog.outString(">> Loaded `character_ticket`, table is empty.");
+        sLog.outString();
         return;
     }
 
@@ -71,19 +69,19 @@ void GMTicketMgr::LoadGMTickets()
 
         ticket.Init(guid, fields[1].GetCppString(), fields[2].GetCppString(), time_t(fields[3].GetUInt64()));
         m_GMTicketListByCreatingOrder.push_back(&ticket);
-
-    } while (result->NextRow());
+    }
+    while (result->NextRow());
     delete result;
 
-    sLog.outString();
     sLog.outString(">> Loaded " SIZEFMTD " GM tickets", GetTicketCount());
+    sLog.outString();
 }
 
 void GMTicketMgr::DeleteAll()
 {
-    for(GMTicketMap::const_iterator itr = m_GMTicketMap.begin(); itr != m_GMTicketMap.end(); ++itr)
+    for (GMTicketMap::const_iterator itr = m_GMTicketMap.begin(); itr != m_GMTicketMap.end(); ++itr)
     {
-        if(Player* owner = sObjectMgr.GetPlayer(itr->first))
+        if (Player* owner = sObjectMgr.GetPlayer(itr->first))
             owner->GetSession()->SendGMTicketGetTicket(0x0A);
     }
     CharacterDatabase.Execute("DELETE FROM character_ticket");

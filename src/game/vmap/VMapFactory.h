@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,7 +37,10 @@ namespace VMAP
 
             static void preventSpellsFromBeingTestedForLoS(const char* pSpellIdString);
             static bool checkSpellForLoS(unsigned int pSpellId);
-    };
 
+            static void chompAndTrim(std::string& str);
+            static bool getNextId(const std::string& pString, unsigned int& pStartPos, unsigned int& pId);
+    };
 }
+
 #endif

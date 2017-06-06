@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
- 
+
 #ifndef MANGOSSERVER_PACKET_BUILDER_H
 #define MANGOSSERVER_PACKET_BUILDER_H
 
@@ -27,11 +27,11 @@ namespace Movement
     class MoveSpline;
     class PacketBuilder
     {
-        static void WriteCommonMonsterMovePart(const MoveSpline& mov, WorldPacket& data);
-    public:
+            static void WriteCommonMonsterMovePart(const MoveSpline& mov, WorldPacket& data);
+        public:
 
-        static void WriteMonsterMove(const MoveSpline& mov, WorldPacket& data);
-        static void WriteCreate(const MoveSpline& mov, ByteBuffer& data);
+            static void WriteMonsterMove(const MoveSpline& mov, WorldPacket& data);
+            static void WriteCreate(const MoveSpline& mov, ByteBuffer& data);
     };
 }
 #endif // MANGOSSERVER_PACKET_BUILDER_H

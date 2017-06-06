@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,10 +19,9 @@
 #include "Common.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
-#include "Opcodes.h"
 #include "Log.h"
 
-void WorldSession::HandleVoiceSessionEnableOpcode( WorldPacket & recv_data )
+void WorldSession::HandleVoiceSessionEnableOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_VOICE_SESSION_ENABLE");
     // uint8 isVoiceEnabled, uint8 isMicrophoneEnabled
@@ -31,14 +30,14 @@ void WorldSession::HandleVoiceSessionEnableOpcode( WorldPacket & recv_data )
     recv_data.hexlike();
 }
 
-void WorldSession::HandleChannelVoiceOnOpcode( WorldPacket & recv_data )
+void WorldSession::HandleChannelVoiceOnOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_CHANNEL_VOICE_ON");
     // Enable Voice button in channel context menu
     recv_data.hexlike();
 }
 
-void WorldSession::HandleSetActiveVoiceChannel( WorldPacket & recv_data )
+void WorldSession::HandleSetActiveVoiceChannel(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_SET_ACTIVE_VOICE_CHANNEL");
     recv_data.read_skip<uint32>();

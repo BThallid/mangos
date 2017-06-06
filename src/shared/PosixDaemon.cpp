@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,9 +18,13 @@
 
 #include "Config/Config.h"
 #include "PosixDaemon.h"
+
 #include <cstdio>
 #include <iostream>
 #include <fstream>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 pid_t parent_pid = 0, sid = 0;
 
@@ -37,13 +41,13 @@ void daemonSignal(int s)
         exit(EXIT_SUCCESS);
     }
 
-    if (sid) {
+    if (sid)
+    {
         kill(sid, s);
     }
 
     exit(EXIT_FAILURE);
 }
-
 
 void startDaemon(uint32_t timeout)
 {
@@ -57,11 +61,13 @@ void startDaemon(uint32_t timeout)
 
     sid = pid = fork();
 
-    if (pid < 0) {
-      exit(EXIT_FAILURE);
+    if (pid < 0)
+    {
+        exit(EXIT_FAILURE);
     }
 
-    if (pid > 0) {
+    if (pid > 0)
+    {
         alarm(timeout);
         pause();
         exit(EXIT_FAILURE);
@@ -71,12 +77,14 @@ void startDaemon(uint32_t timeout)
 
     sid = setsid();
 
-    if (sid < 0) {
-      exit(EXIT_FAILURE);
+    if (sid < 0)
+    {
+        exit(EXIT_FAILURE);
     }
 
-    if ((chdir("/")) < 0) {
-      exit(EXIT_FAILURE);
+    if ((chdir("/")) < 0)
+    {
+        exit(EXIT_FAILURE);
     }
 
     freopen("/dev/null", "rt", stdin);
@@ -87,7 +95,7 @@ void startDaemon(uint32_t timeout)
 void stopDaemon()
 {
     std::string pidfile = sConfig.GetStringDefault("PidFile", "");
-    if(!pidfile.empty())
+    if (!pidfile.empty())
     {
         std::fstream pf(pidfile.c_str(), std::ios::in);
         uint32_t pid = 0;
@@ -115,7 +123,6 @@ void detachDaemon()
     }
 }
 
-
 void exitDaemon()
 {
     if (parent_pid && parent_pid != getpid())
@@ -123,7 +130,6 @@ void exitDaemon()
         kill(parent_pid, SIGTERM);
     }
 }
-
 
 struct WatchDog
 {

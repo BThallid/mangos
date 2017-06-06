@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,14 +20,13 @@
 #define _GUILDMGR_H
 
 #include "Common.h"
-#include "Policies/Singleton.h"
 
 class Guild;
 class ObjectGuid;
 
 class GuildMgr
 {
-        typedef UNORDERED_MAP<uint32, Guild*> GuildMap;
+        typedef std::unordered_map<uint32, Guild*> GuildMap;
 
         GuildMap m_GuildMap;
     public:

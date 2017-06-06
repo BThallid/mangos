@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,29 +32,38 @@ class Totem : public Creature
 {
     public:
         explicit Totem();
-        virtual ~Totem(){};
+        virtual ~Totem() {}
         bool Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo const* cinfo, Unit* owner);
         void Update(uint32 update_diff, uint32 time) override;
         void Summon(Unit* owner);
         void UnSummon();
         uint32 GetSpell() const { return m_spells[0]; }
         uint32 GetTotemDuration() const { return m_duration; }
-        Unit *GetOwner();
+        Unit* GetOwner() const;
         TotemType GetTotemType() const { return m_type; }
-        void SetTypeBySummonSpell(SpellEntry const * spellProto);
+        void SetTypeBySummonSpell(SpellEntry const* spellProto);
         void SetDuration(uint32 dur) { m_duration = dur; }
         void SetOwner(Unit* owner);
 
-        bool UpdateStats(Stats /*stat*/) { return true; }
-        bool UpdateAllStats() { return true; }
-        void UpdateResistances(uint32 /*school*/) {}
-        void UpdateArmor() {}
-        void UpdateMaxHealth() {}
-        void UpdateMaxPower(Powers /*power*/) {}
-        void UpdateAttackPowerAndDamage(bool /*ranged*/ ) {}
-        void UpdateDamagePhysical(WeaponAttackType /*attType*/) {}
+        float GetCritChance(WeaponAttackType attackType) const override;
+        float GetCritChance(SpellSchoolMask schoolMask) const override;
+        float GetCritMultiplier(SpellSchoolMask dmgSchoolMask, uint32 creatureTypeMask, const SpellEntry* spell = nullptr, bool heal = false) const override;
+        float GetHitChance(WeaponAttackType attackType) const override;
+        float GetHitChance(SpellSchoolMask schoolMask) const override;
+        float GetMissChance(WeaponAttackType attackType) const override;
+        float GetMissChance(SpellSchoolMask schoolMask) const override;
+        int32 GetResistancePenetration(SpellSchools school) const override;
 
-        bool IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index) const;
+        bool UpdateStats(Stats /*stat*/) override { return true; }
+        bool UpdateAllStats() override { return true; }
+        void UpdateResistances(uint32 /*school*/) override {}
+        void UpdateArmor() override {}
+        void UpdateMaxHealth() override {}
+        void UpdateMaxPower(Powers /*power*/) override {}
+        void UpdateAttackPowerAndDamage(bool /*ranged*/) override {}
+        void UpdateDamagePhysical(WeaponAttackType /*attType*/) override {}
+
+        bool IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex index, bool castOnSelf) const override;
 
     protected:
         TotemType m_type;

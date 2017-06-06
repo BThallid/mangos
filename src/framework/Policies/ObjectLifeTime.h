@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,10 +26,10 @@ typedef void (* Destroyer)(void);
 
 namespace MaNGOS
 {
-    void MANGOS_DLL_SPEC at_exit(void (*func)());
+    void at_exit(void (*func)());
 
     template<class T>
-    class MANGOS_DLL_DECL ObjectLifeTime
+    class ObjectLifeTime
     {
         public:
 

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2005-2011 MaNGOS project <http://getmangos.com/>
+# This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,57 +16,94 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-# include(${CMAKE_SOURCE_DIR}/dep/tbb/tbbinclude.cmake)
+set(LIBRARY_NAME framework)
 
-file(GLOB_RECURSE framework_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cpp *.h)
-
-source_group("Other"
-  REGULAR_EXPRESSION .*
+set(SRC_GRP_DYNAMIC
+    Dynamic/FactoryHolder.h
+    Dynamic/ObjectRegistry.h
 )
 
-source_group("GameSystem"
-  REGULAR_EXPRESSION GameSystem
+set(SRC_GRP_GAMESYSTEM
+    GameSystem/Grid.h
+    GameSystem/GridLoader.h
+    GameSystem/GridReference.h
+    GameSystem/GridRefManager.h
+    GameSystem/NGrid.h
+    GameSystem/TypeContainer.h
+    GameSystem/TypeContainerFunctions.h
+    GameSystem/TypeContainerVisitor.h
 )
 
-source_group("Platform"
-  REGULAR_EXPRESSION Platform
+set(SRC_GRP_PLATFORM
+    Platform/CompilerDefs.h
+    Platform/Define.h
 )
 
-source_group("Policies"
-  REGULAR_EXPRESSION Policies
+set(SRC_GRP_POLICIES
+    Policies/CreationPolicy.h
+    Policies/ObjectLifeTime.cpp
+    Policies/ObjectLifeTime.h
+    Policies/Singleton.h
+    Policies/ThreadingModel.h
 )
 
-source_group("Utilities"
-  REGULAR_EXPRESSION Utilities
+set(SRC_GRP_UTIL
+    Utilities/ByteConverter.h
+    Utilities/Callback.h
+    Utilities/EventProcessor.cpp
+    Utilities/EventProcessor.h
+    Utilities/LinkedList.h
+    Utilities/TypeList.h
 )
 
-source_group("LinkedReference"
-  REGULAR_EXPRESSION LinkedReference
+set(SRC_GRP_LINKED_REFERENCE
+    Utilities/LinkedReference/Reference.h
+    Utilities/LinkedReference/RefManager.h
+)
+
+set(LIBRARY_SRCS
+    ${SRC_GRP_DYNAMIC}
+    ${SRC_GRP_GAMESYSTEM}
+    ${SRC_GRP_PLATFORM}
+    ${SRC_GRP_POLICIES}
+    ${SRC_GRP_UTIL}
+    ${SRC_GRP_LINKED_REFERENCE}
 )
 
 source_group("Dynamic"
-  REGULAR_EXPRESSION Dynamic
+  FILES
+    ${SRC_GRP_DYNAMIC}
+)
+
+source_group("GameSystem"
+  FILES
+    ${SRC_GRP_GAMESYSTEM}
+)
+
+source_group("Platform"
+  FILES
+    ${SRC_GRP_PLATFORM}
+)
+
+source_group("Policies"
+  FILES
+    ${SRC_GRP_POLICIES}
+)
+
+source_group("Utilities"
+  FILES
+    ${SRC_GRP_UTIL}
+)
+
+source_group("Utilities\\LinkedReference"
+  FILES
+    ${SRC_GRP_LINKED_REFERENCE}
 )
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${ACE_INCLUDE_DIR}
 )
 
-add_library(framework STATIC
-  ${framework_SRCS}
-)
-
-if(NOT TBB_USE_EXTERNAL)
-  add_dependencies(framework TBB_Project)
-# add_dependencies(framework tbb)
-# add_dependencies(framework tbbmalloc)
-endif()
-if(NOT ACE_USE_EXTERNAL)
-  add_dependencies(framework ACE_Project)
-# add_dependencies(framework ace)
-endif()
-
-target_link_libraries(framework
-  ${TBB_LIBRARIES}
+add_library(${LIBRARY_NAME} STATIC
+  ${LIBRARY_SRCS}
 )

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,8 +19,6 @@
 #ifndef _PLAYER_DUMP_H
 #define _PLAYER_DUMP_H
 
-#include <string>
-#include <map>
 #include <set>
 
 enum DumpTableType
@@ -28,11 +26,11 @@ enum DumpTableType
     DTT_CHARACTER,      //    -> guid, name                 // characters
 
     DTT_CHAR_TABLE,     //                                  // character_account_data, character_achievement,
-                                                            // character_achievement_progress, character_action,
-                                                            // character_aura, character_glyphs,
-                                                            // character_homebind, character_queststatus,
-                                                            // character_reputation, character_skills, character_spell,
-                                                            // character_spell_cooldown, character_talent, character_ticket
+    // character_achievement_progress, character_action,
+    // character_aura, character_glyphs,
+    // character_homebind, character_queststatus,
+    // character_reputation, character_skills, character_spell,
+    // character_spell_cooldown, character_talent, character_ticket
 
     DTT_CHAR_NAME_TABLE,// <- guid, name                    // character_declinedname
 
@@ -41,10 +39,10 @@ enum DumpTableType
     DTT_INVENTORY,      //    -> item guids collection      // character_inventory
 
     DTT_MAIL,           //    -> mail ids collection        // mail
-                        //    -> item_text
+    //    -> item_text
 
     DTT_MAIL_ITEM,      // <- mail ids                      // mail_items
-                        //    -> item guids collection
+    //    -> item guids collection
 
     DTT_ITEM,           // <- item guids                    // item_instance
 
@@ -82,9 +80,9 @@ class PlayerDumpWriter : public PlayerDump
     private:
         typedef std::set<uint32> GUIDs;
 
-        void DumpTableContent(std::string& dump, uint32 guid, char const*tableFrom, char const*tableTo, DumpTableType type);
-        std::string GenerateWhereStr(char const* field, GUIDs const& guids, GUIDs::const_iterator& itr);
-        std::string GenerateWhereStr(char const* field, uint32 guid);
+        void DumpTableContent(std::string& dump, uint32 guid, char const* tableFrom, char const* tableTo, DumpTableType type);
+    static std::string GenerateWhereStr(char const* field, GUIDs const& guids, GUIDs::const_iterator& itr);
+    static std::string GenerateWhereStr(char const* field, uint32 guid);
 
         GUIDs pets;
         GUIDs mails;
@@ -96,7 +94,7 @@ class PlayerDumpReader : public PlayerDump
     public:
         PlayerDumpReader() {}
 
-        DumpReturn LoadDump(const std::string& file, uint32 account, std::string name, uint32 guid);
+    static DumpReturn LoadDump(const std::string& file, uint32 account, std::string name, uint32 guid);
 };
 
 #endif

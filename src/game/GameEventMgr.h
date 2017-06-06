@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,9 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "Platform/Define.h"
-#include "Policies/Singleton.h"
 
 #define max_ge_check_delay 86400                            // 1 day in seconds
+#define FAR_FUTURE 1609459200                               // 2021, January 1st
 
 class Creature;
 class GameObject;
@@ -32,12 +32,13 @@ class MapPersistentState;
 
 struct GameEventData
 {
-    GameEventData() : start(1),end(0),occurence(0),length(0), holiday_id(HOLIDAY_NONE) {}
+    GameEventData() : start(1), end(0), occurence(0), length(0), holiday_id(HOLIDAY_NONE) {}
     time_t start;
     time_t end;
     uint32 occurence;                                       // Delay in minutes between occurences of the event
     uint32 length;                                          // Length in minutes of the event
     HolidayIds holiday_id;
+    uint32 linkedTo;
     std::string description;
 
     bool isValid() const { return length > 0; }
@@ -79,9 +80,9 @@ class GameEventMgr
         uint32 NextCheck(uint16 entry) const;
         void LoadFromDB();
         void Initialize(MapPersistentState* state);         // called at new MapPersistentState object create
-        uint32 Update(ActiveEvents const* activeAtShutdown = NULL);
+        uint32 Update(ActiveEvents const* activeAtShutdown = nullptr);
         bool IsValidEvent(uint16 event_id) const { return event_id < mGameEvent.size() && mGameEvent[event_id].isValid(); }
-        bool IsActiveEvent(uint16 event_id) const { return ( m_ActiveEvents.find(event_id)!=m_ActiveEvents.end()); }
+        bool IsActiveEvent(uint16 event_id) const { return (m_ActiveEvents.find(event_id) != m_ActiveEvents.end()); }
         bool IsActiveHoliday(HolidayIds id);
         uint32 Initialize();
         void StartEvent(uint16 event_id, bool overwrite = false, bool resume = false);
@@ -107,7 +108,7 @@ class GameEventMgr
         typedef std::list<GameEventCreatureDataPair> GameEventCreatureDataList;
         typedef std::vector<GameEventCreatureDataList> GameEventCreatureDataMap;
         typedef std::multimap<uint32, uint32> GameEventCreatureDataPerGuidMap;
-        typedef std::pair<GameEventCreatureDataPerGuidMap::const_iterator,GameEventCreatureDataPerGuidMap::const_iterator> GameEventCreatureDataPerGuidBounds;
+        typedef std::pair<GameEventCreatureDataPerGuidMap::const_iterator, GameEventCreatureDataPerGuidMap::const_iterator> GameEventCreatureDataPerGuidBounds;
 
         typedef std::list<uint32> QuestList;
         typedef std::vector<QuestList> GameEventQuestMap;
@@ -130,6 +131,6 @@ class GameEventMgr
 
 #define sGameEventMgr MaNGOS::Singleton<GameEventMgr>::Instance()
 
-MANGOS_DLL_SPEC bool IsHolidayActive(HolidayIds id);
+bool IsHolidayActive(HolidayIds id);
 
 #endif

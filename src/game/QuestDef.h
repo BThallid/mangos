@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 #include "Platform/Define.h"
 #include "Database/DatabaseEnv.h"
 
-#include <string>
 #include <vector>
 
 class Player;
@@ -103,6 +102,7 @@ enum QuestStatus
     MAX_QUEST_STATUS
 };
 
+// TODO: Add comments
 enum __QuestGiverStatus
 {
     DIALOG_STATUS_NONE                     = 0,
@@ -115,7 +115,8 @@ enum __QuestGiverStatus
     DIALOG_STATUS_AVAILABLE_REP            = 7,
     DIALOG_STATUS_AVAILABLE                = 8,
     DIALOG_STATUS_REWARD2                  = 9,             // no yellow dot on minimap
-    DIALOG_STATUS_REWARD                   = 10             // yellow dot on minimap
+    DIALOG_STATUS_REWARD                   = 10,            // yellow dot on minimap
+    DIALOG_STATUS_UNDEFINED                = 100            // Used as result for unassigned ScriptCall
 };
 
 // values based at QuestInfo.dbc
@@ -142,7 +143,7 @@ enum QuestFlags
     QUEST_FLAGS_PARTY_ACCEPT   = 0x00000002,                // If player in party, all players that can accept this quest will receive confirmation box to accept quest CMSG_QUEST_CONFIRM_ACCEPT/SMSG_QUEST_CONFIRM_ACCEPT
     QUEST_FLAGS_EXPLORATION    = 0x00000004,                // Not used currently
     QUEST_FLAGS_SHARABLE       = 0x00000008,                // Can be shared: Player::CanShareQuest()
-    //QUEST_FLAGS_NONE2        = 0x00000010,                // Not used currently
+    // QUEST_FLAGS_NONE2        = 0x00000010,               // Not used currently
     QUEST_FLAGS_EPIC           = 0x00000020,                // Not used currently - 1 quest in 3.3
     QUEST_FLAGS_RAID           = 0x00000040,                // Not used currently
     QUEST_FLAGS_TBC            = 0x00000080,                // Not used currently: Available if TBC expansion enabled only
@@ -195,10 +196,10 @@ struct QuestLocale
 // xp to give
 class Quest
 {
-    friend class ObjectMgr;
+        friend class ObjectMgr;
     public:
-        Quest(Field * questRecord);
-        uint32 XPValue( Player *pPlayer ) const;
+        Quest(Field* questRecord);
+        uint32 XPValue(Player* pPlayer) const;
 
         uint32 GetQuestFlags() const { return m_QuestFlags; }
         bool HasQuestFlag(QuestFlags flag) const { return (m_QuestFlags & flag) != 0; }
@@ -216,6 +217,7 @@ class Quest
         uint32 GetRequiredRaces() const { return RequiredRaces; }
         uint32 GetRequiredSkill() const { return RequiredSkill; }
         uint32 GetRequiredSkillValue() const { return RequiredSkillValue; }
+        uint32 GetRequiredCondition() const { return RequiredCondition; }
         uint32 GetRepObjectiveFaction() const { return RepObjectiveFaction; }
         int32  GetRepObjectiveValue() const { return RepObjectiveValue; }
         uint32 GetRequiredMinRepFaction() const { return RequiredMinRepFaction; }
@@ -246,7 +248,7 @@ class Quest
         uint32 GetRewHonorAddition() const { return RewHonorAddition; }
         float GetRewHonorMultiplier() const { return RewHonorMultiplier; }
         uint32 GetRewMoneyMaxLevel() const { return RewMoneyMaxLevel; }
-                                                            // use in XP calculation at client
+        // use in XP calculation at client
         uint32 GetRewSpell() const { return RewSpell; }
         uint32 GetRewSpellCast() const { return RewSpellCast; }
         uint32 GetRewMailTemplateId() const { return RewMailTemplateId; }
@@ -260,13 +262,13 @@ class Quest
         uint32 GetQuestStartScript() const { return QuestStartScript; }
         uint32 GetQuestCompleteScript() const { return QuestCompleteScript; }
 
-        bool   IsRepeatable() const { return m_SpecialFlags & QUEST_SPECIAL_FLAG_REPEATABLE; }
-        bool   IsAutoComplete() const { return QuestMethod ? false : true; }
-        bool   IsDaily() const { return m_QuestFlags & QUEST_FLAGS_DAILY; }
-        bool   IsWeekly() const { return m_QuestFlags & QUEST_FLAGS_WEEKLY; }
-        bool   IsMonthly() const { return m_SpecialFlags & QUEST_SPECIAL_FLAG_MONTHLY; }
-        bool   IsDailyOrWeekly() const { return m_QuestFlags & (QUEST_FLAGS_DAILY | QUEST_FLAGS_WEEKLY); }
-        bool   IsAutoAccept() const { return m_QuestFlags & QUEST_FLAGS_AUTO_ACCEPT; }
+        bool   IsRepeatable() const { return !!(m_SpecialFlags & QUEST_SPECIAL_FLAG_REPEATABLE); }
+        bool   IsAutoComplete() const { return !QuestMethod; }
+        bool   IsDaily() const { return !!(m_QuestFlags & QUEST_FLAGS_DAILY); }
+        bool   IsWeekly() const { return !!(m_QuestFlags & QUEST_FLAGS_WEEKLY); }
+        bool   IsMonthly() const { return !!(m_SpecialFlags & QUEST_SPECIAL_FLAG_MONTHLY); }
+        bool   IsDailyOrWeekly() const { return !!(m_QuestFlags & (QUEST_FLAGS_DAILY | QUEST_FLAGS_WEEKLY)); }
+        bool   IsAutoAccept() const { return !!(m_QuestFlags & QUEST_FLAGS_AUTO_ACCEPT); }
         bool   IsAllowedInRaid() const;
 
         // quest can be fully deactivated and will not be available for any player
@@ -327,6 +329,7 @@ class Quest
         uint32 RequiredRaces;
         uint32 RequiredSkill;
         uint32 RequiredSkillValue;
+        uint32 RequiredCondition;
         uint32 RepObjectiveFaction;
         int32  RepObjectiveValue;
         uint32 RequiredMinRepFaction;
@@ -383,8 +386,8 @@ enum QuestUpdateState
 struct QuestStatusData
 {
     QuestStatusData()
-        : m_status(QUEST_STATUS_NONE),m_rewarded(false),
-        m_explored(false), m_timer(0), uState(QUEST_NEW)
+        : m_status(QUEST_STATUS_NONE), m_rewarded(false),
+          m_explored(false), m_timer(0), uState(QUEST_NEW)
     {
         memset(m_itemcount, 0, QUEST_ITEM_OBJECTIVES_COUNT * sizeof(uint32));
         memset(m_creatureOrGOcount, 0, QUEST_OBJECTIVES_COUNT * sizeof(uint32));

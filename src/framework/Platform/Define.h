@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,14 +19,10 @@
 #ifndef MANGOS_DEFINE_H
 #define MANGOS_DEFINE_H
 
-#include <sys/types.h>
-
-#include <ace/Basic_Types.h>
-#include <ace/Default_Constants.h>
-#include <ace/OS_NS_dlfcn.h>
-#include <ace/ACE_export.h>
-
 #include "Platform/CompilerDefs.h"
+
+#include <cstdint>
+#include <sys/types.h>
 
 #define MANGOS_LITTLEENDIAN 0
 #define MANGOS_BIGENDIAN    1
@@ -34,90 +30,88 @@
 #if !defined(MANGOS_ENDIAN)
 #  if defined (ACE_BIG_ENDIAN)
 #    define MANGOS_ENDIAN MANGOS_BIGENDIAN
-#  else //ACE_BYTE_ORDER != ACE_BIG_ENDIAN
+#  else // ACE_BYTE_ORDER != ACE_BIG_ENDIAN
 #    define MANGOS_ENDIAN MANGOS_LITTLEENDIAN
-#  endif //ACE_BYTE_ORDER
-#endif //MANGOS_ENDIAN
-
-typedef ACE_SHLIB_HANDLE MANGOS_LIBRARY_HANDLE;
+#  endif // ACE_BYTE_ORDER
+#endif // MANGOS_ENDIAN
 
 #define MANGOS_SCRIPT_NAME "mangosscript"
-#define MANGOS_SCRIPT_SUFFIX ACE_DLL_SUFFIX
-#define MANGOS_SCRIPT_PREFIX ACE_DLL_PREFIX
-#define MANGOS_LOAD_LIBRARY(libname)    ACE_OS::dlopen(libname)
-#define MANGOS_CLOSE_LIBRARY(hlib)      ACE_OS::dlclose(hlib)
-#define MANGOS_GET_PROC_ADDR(hlib,name) ACE_OS::dlsym(hlib,name)
 
-#define MANGOS_PATH_MAX PATH_MAX                            // ace/os_include/os_limits.h -> ace/Basic_Types.h
+#define MANGOS_PATH_MAX 1024
 
 #if PLATFORM == PLATFORM_WINDOWS
+#  define WIN32_LEAN_AND_MEAN
+#  include <Windows.h>
+#  ifndef _WIN32_WINNT
+#    define _WIN32_WINNT 0x0603
+#  endif
+   typedef HMODULE MANGOS_LIBRARY_HANDLE;
+#  define MANGOS_SCRIPT_SUFFIX ".dll"
+#  define MANGOS_SCRIPT_PREFIX ""
+#  define MANGOS_LOAD_LIBRARY(libname)     LoadLibraryA(libname)
+#  define MANGOS_CLOSE_LIBRARY(hlib)       FreeLibrary(hlib)
+#  define MANGOS_GET_PROC_ADDR(hlib, name) GetProcAddress(hlib, name)
 #  define MANGOS_EXPORT __declspec(dllexport)
 #  define MANGOS_IMPORT __cdecl
-#else //PLATFORM != PLATFORM_WINDOWS
+#else // PLATFORM != PLATFORM_WINDOWS
+#  include <dlfcn.h>
+   typedef void* MANGOS_LIBRARY_HANDLE;
+#  define MANGOS_LOAD_LIBRARY(libname)     dlopen(libname, RTLD_LAZY)
+#  define MANGOS_CLOSE_LIBRARY(hlib)       dlclose(hlib)
+#  define MANGOS_GET_PROC_ADDR(hlib, name) dlsym(hlib, name)
 #  define MANGOS_EXPORT export
-#  if defined(__APPLE_CC__) && defined(BIG_ENDIAN)
-#    define MANGOS_IMPORT __attribute__ ((longcall))
+#  if PLATFORM == PLATFORM_APPLE
+#    define MANGOS_SCRIPT_SUFFIX ".dylib"
+#  else
+#    define MANGOS_SCRIPT_SUFFIX ".so"
+#  endif
+#  define MANGOS_SCRIPT_PREFIX "lib"
+#  if defined(__APPLE_CC__) && defined(BIG_ENDIAN) // TODO:: more work to do with byte order. Have to be rechecked after boost integration.
+#    if (defined (__ppc__) || defined (__powerpc__))
+#      define MANGOS_IMPORT __attribute__ ((longcall))
+#    else
+#      define MANGOS_IMPORT
+#    endif
 #  elif defined(__x86_64__)
 #    define MANGOS_IMPORT
 #  else
 #    define MANGOS_IMPORT __attribute__ ((cdecl))
 #  endif //__APPLE_CC__ && BIG_ENDIAN
-#endif //PLATFORM
+#endif // PLATFORM
 
 #if PLATFORM == PLATFORM_WINDOWS
-#  ifdef MANGOS_WIN32_DLL_IMPORT
-#    define MANGOS_DLL_DECL __declspec(dllimport)
-#  else //!MANGOS_WIN32_DLL_IMPORT
-#    ifdef MANGOS_WIND_DLL_EXPORT
-#      define MANGOS_DLL_DECL __declspec(dllexport)
-#    else //!MANGOS_WIND_DLL_EXPORT
-#      define MANGOS_DLL_DECL
-#    endif //MANGOS_WIND_DLL_EXPORT
-#  endif //MANGOS_WIN32_DLL_IMPORT
-#else //PLATFORM != PLATFORM_WINDOWS
-#  define MANGOS_DLL_DECL
-#endif //PLATFORM
-
-#if PLATFORM == PLATFORM_WINDOWS
-#  define MANGOS_DLL_SPEC __declspec(dllexport)
 #  ifndef DECLSPEC_NORETURN
 #    define DECLSPEC_NORETURN __declspec(noreturn)
-#  endif //DECLSPEC_NORETURN
-#else //PLATFORM != PLATFORM_WINDOWS
-#  define MANGOS_DLL_SPEC
+#  endif // DECLSPEC_NORETURN
+#else // PLATFORM != PLATFORM_WINDOWS
 #  define DECLSPEC_NORETURN
-#endif //PLATFORM
+#endif // PLATFORM
 
 #if !defined(DEBUG)
 #  define MANGOS_INLINE inline
-#else //DEBUG
+#else // DEBUG
 #  if !defined(MANGOS_DEBUG)
 #    define MANGOS_DEBUG
-#  endif //MANGOS_DEBUG
+#  endif // MANGOS_DEBUG
 #  define MANGOS_INLINE
 #endif //!DEBUG
 
 #if COMPILER == COMPILER_GNU
 #  define ATTR_NORETURN __attribute__((noreturn))
 #  define ATTR_PRINTF(F,V) __attribute__ ((format (printf, F, V)))
-#else //COMPILER != COMPILER_GNU
+#else // COMPILER != COMPILER_GNU
 #  define ATTR_NORETURN
 #  define ATTR_PRINTF(F,V)
-#endif //COMPILER == COMPILER_GNU
+#endif // COMPILER == COMPILER_GNU
 
-typedef ACE_INT64 int64;
-typedef ACE_INT32 int32;
-typedef ACE_INT16 int16;
-typedef ACE_INT8 int8;
-typedef ACE_UINT64 uint64;
-typedef ACE_UINT32 uint32;
-typedef ACE_UINT16 uint16;
-typedef ACE_UINT8 uint8;
-
-#if COMPILER != COMPILER_MICROSOFT
-typedef uint16      WORD;
-typedef uint32      DWORD;
-#endif //COMPILER
+typedef std::int64_t int64;
+typedef std::int32_t int32;
+typedef std::int16_t int16;
+typedef std::int8_t int8;
+typedef std::uint64_t uint64;
+typedef std::uint32_t uint32;
+typedef std::uint16_t uint16;
+typedef std::uint8_t uint8;
 
 #if COMPILER == COMPILER_GNU
 #  if !defined(__GXX_EXPERIMENTAL_CXX0X__) || (__GNUC__ < 4) || (__GNUC__ == 4) && (__GNUC_MINOR__ < 7)
@@ -127,4 +121,4 @@ typedef uint32      DWORD;
 
 typedef uint64 OBJECT_HANDLE;
 
-#endif //MANGOS_DEFINE_H
+#endif // MANGOS_DEFINE_H

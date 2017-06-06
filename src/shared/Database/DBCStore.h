@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,12 +24,12 @@
 template<class T>
 class DBCStorage
 {
-    typedef std::list<char*> StringPoolList;
+        typedef std::list<char*> StringPoolList;
     public:
-        explicit DBCStorage(const char *f) : nCount(0), fieldCount(0), fmt(f), indexTable(NULL), m_dataTable(NULL) { }
+        explicit DBCStorage(const char* f) : nCount(0), fieldCount(0), fmt(f), indexTable(nullptr), m_dataTable(nullptr) { }
         ~DBCStorage() { Clear(); }
 
-        T const* LookupEntry(uint32 id) const { return (id>=nCount)?NULL:indexTable[id]; }
+        T const* LookupEntry(uint32 id) const { return (id >= nCount) ? nullptr : indexTable[id]; }
         uint32  GetNumRows() const { return nCount; }
         char const* GetFormat() const { return fmt; }
         uint32 GetFieldCount() const { return fieldCount; }
@@ -38,34 +38,34 @@ class DBCStorage
         {
             DBCFileLoader dbc;
             // Check if load was sucessful, only then continue
-            if(!dbc.Load(fn, fmt))
+            if (!dbc.Load(fn, fmt))
                 return false;
 
             fieldCount = dbc.GetCols();
 
             // load raw non-string data
-            m_dataTable = (T*)dbc.AutoProduceData(fmt,nCount,(char**&)indexTable);
+            m_dataTable = (T*)dbc.AutoProduceData(fmt, nCount, (char**&)indexTable);
 
             // load strings from dbc data
-            m_stringPoolList.push_back(dbc.AutoProduceStrings(fmt,(char*)m_dataTable));
+            m_stringPoolList.push_back(dbc.AutoProduceStrings(fmt, (char*)m_dataTable));
 
-            // error in dbc file at loading if NULL
-            return indexTable!=NULL;
+            // error in dbc file at loading if nullptr
+            return indexTable != nullptr;
         }
 
         bool LoadStringsFrom(char const* fn)
         {
             // DBC must be already loaded using Load
-            if(!indexTable)
+            if (!indexTable)
                 return false;
 
             DBCFileLoader dbc;
             // Check if load was successful, only then continue
-            if(!dbc.Load(fn, fmt))
+            if (!dbc.Load(fn, fmt))
                 return false;
 
             // load strings from another locale dbc data
-            m_stringPoolList.push_back(dbc.AutoProduceStrings(fmt,(char*)m_dataTable));
+            m_stringPoolList.push_back(dbc.AutoProduceStrings(fmt, (char*)m_dataTable));
 
             return true;
         }
@@ -75,12 +75,12 @@ class DBCStorage
             if (!indexTable)
                 return;
 
-            delete[] ((char*)indexTable);
-            indexTable = NULL;
-            delete[] ((char*)m_dataTable);
-            m_dataTable = NULL;
+            delete[]((char*)indexTable);
+            indexTable = nullptr;
+            delete[]((char*)m_dataTable);
+            m_dataTable = nullptr;
 
-            while(!m_stringPoolList.empty())
+            while (!m_stringPoolList.empty())
             {
                 delete[] m_stringPoolList.front();
                 m_stringPoolList.pop_front();
@@ -88,7 +88,8 @@ class DBCStorage
             nCount = 0;
         }
 
-        void EraseEntry(uint32 id) { indexTable[id] = NULL; }
+        void EraseEntry(uint32 id) { assert(id < nCount && "To be erased entry must be in bounds!") ; indexTable[id] = nullptr; }
+        void InsertEntry(T* entry, uint32 id) { assert(id < nCount && "To be inserted entry must be in bounds!"); indexTable[id] = entry; }
 
     private:
         uint32 nCount;

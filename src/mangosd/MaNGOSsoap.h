@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,91 +27,30 @@
 #include "soapH.h"
 #include "soapStub.h"
 
-#include <ace/Semaphore.h>
-#include <ace/Task.h>
+#include <string>
+#include <thread>
 
-
-class MaNGOSsoapRunnable: public ACE_Based::Runnable
+class SOAPThread
 {
-    public:
-        MaNGOSsoapRunnable() { }
-        void run();
-        void setListenArguments(std::string host, uint16 port)
-        {
-            m_host = host;
-            m_port = port;
-        }
     private:
-        std::string m_host;
-        uint16 m_port;
-};
+        static const int WorkerThreads = 5;
+        static const int AcceptTimeout = 3;
+        static const int DataTimeout = 5;
+        static const int BackLogSize = 100;
 
-class SOAPWorkingThread : public ACE_Task<ACE_MT_SYNCH>
-{
+        const std::string m_host;
+        const int m_port;
+
+        std::thread m_workerThread;
+
+        void Work();
+
     public:
-        SOAPWorkingThread ()
-        { }
+        static const AccountTypes MinLevel = AccountTypes::SEC_ADMINISTRATOR;
+        static const int CommandOutputBufferSize = 256;
 
-        virtual int svc (void)
-        {
-            while (1)
-            {
-                ACE_Message_Block *mb = 0;
-                if (this->getq (mb) == -1)
-                {
-                    ACE_DEBUG ((LM_INFO,
-                                ACE_TEXT ("(%t) Shutting down\n")));
-                    break;
-                }
-
-                // Process the message.
-                process_message (mb);
-            }
-
-            return 0;
-        }
-    private:
-        void process_message (ACE_Message_Block *mb);
-};
-
-
-class SOAPCommand
-{
-    public:
-        SOAPCommand():
-            pendingCommands(0, USYNC_THREAD, "pendingCommands")
-        {
-
-        }
-        ~SOAPCommand()
-        {
-        }
-
-        void appendToPrintBuffer(const char* msg)
-        {
-            m_printBuffer += msg;
-        }
-
-        ACE_Semaphore pendingCommands;
-
-        void setCommandSuccess(bool val)
-        {
-            m_success = val;
-        }
-        bool hasCommandSucceeded()
-        {
-            return m_success;
-        }
-
-        static void print(void* callbackArg, const char* msg)
-        {
-            ((SOAPCommand*)callbackArg)->appendToPrintBuffer(msg);
-        }
-
-        static void commandFinished(void* callbackArg, bool success);
-
-        bool m_success;
-        std::string m_printBuffer;
+        SOAPThread(const std::string &host, int port);
+        ~SOAPThread();
 };
 
 #endif

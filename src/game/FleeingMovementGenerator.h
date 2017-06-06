@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+* This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -23,51 +23,39 @@
 #include "ObjectGuid.h"
 
 template<class T>
-class MANGOS_DLL_SPEC FleeingMovementGenerator
-: public MovementGeneratorMedium< T, FleeingMovementGenerator<T> >
+class FleeingMovementGenerator
+    : public MovementGeneratorMedium< T, FleeingMovementGenerator<T> >
 {
     public:
         FleeingMovementGenerator(ObjectGuid fright) : i_frightGuid(fright), i_nextCheckTime(0) {}
 
-        void Initialize(T &);
-        void Finalize(T &);
-        void Interrupt(T &);
-        void Reset(T &);
-        bool Update(T &, const uint32 &);
+        void Initialize(T&);
+        void Finalize(T&) const;
+        void Interrupt(T&);
+        void Reset(T&);
+        bool Update(T&, const uint32&);
 
-        MovementGeneratorType GetMovementGeneratorType() const { return FLEEING_MOTION_TYPE; }
+        MovementGeneratorType GetMovementGeneratorType() const override { return FLEEING_MOTION_TYPE; }
 
     private:
-        void _setTargetLocation(T &owner);
-        bool _getPoint(T &owner, float &x, float &y, float &z);
-        bool _setMoveData(T &owner);
-        void _Init(T &);
+        void _setTargetLocation(T& owner);
+        bool _getPoint(T& owner, float& x, float& y, float& z);
 
-        bool is_water_ok   :1;
-        bool is_land_ok    :1;
-        bool i_only_forward:1;
-
-        float i_caster_x;
-        float i_caster_y;
-        float i_caster_z;
-        float i_last_distance_from_caster;
-        float i_to_distance_from_caster;
-        float i_cur_angle;
         ObjectGuid i_frightGuid;
         TimeTracker i_nextCheckTime;
 };
 
-class MANGOS_DLL_SPEC TimedFleeingMovementGenerator
-: public FleeingMovementGenerator<Creature>
+class TimedFleeingMovementGenerator
+    : public FleeingMovementGenerator<Creature>
 {
     public:
         TimedFleeingMovementGenerator(ObjectGuid fright, uint32 time) :
             FleeingMovementGenerator<Creature>(fright),
             i_totalFleeTime(time) {}
 
-        MovementGeneratorType GetMovementGeneratorType() const { return TIMED_FLEEING_MOTION_TYPE; }
-        bool Update(Unit &, const uint32 &);
-        void Finalize(Unit &);
+        MovementGeneratorType GetMovementGeneratorType() const override { return TIMED_FLEEING_MOTION_TYPE; }
+        bool Update(Unit&, const uint32&) override;
+        void Finalize(Unit&) override;
 
     private:
         TimeTracker i_totalFleeTime;

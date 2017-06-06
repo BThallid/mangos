@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
 
 #include "Common.h"
 #include "Platform/Define.h"
-#include "Policies/Singleton.h"
 #include "Creature.h"
 #include "GameObject.h"
 
@@ -30,11 +29,11 @@ struct MapEntry;
 
 struct PoolTemplateData
 {
-    PoolTemplateData() : mapEntry(NULL), MaxLimit(0), AutoSpawn(false) {}
+    PoolTemplateData() : mapEntry(nullptr), MaxLimit(0), AutoSpawn(false) {}
 
     MapEntry const* mapEntry;                               // Map id used for pool creature/gameobject spams. In case non-instanceable map
-                                                            // it can be not unique but base at sharing same pool system dynamic data in this case this is not important.
-                                                            // NULL is no spawns by some reason
+    // it can be not unique but base at sharing same pool system dynamic data in this case this is not important.
+    // nullptr is no spawns by some reason
     uint32  MaxLimit;
     bool AutoSpawn;                                         // spawn at pool system start (not part of another pool and not part of event spawn)
     std::string description;
@@ -42,7 +41,7 @@ struct PoolTemplateData
     // helpers
     bool CanBeSpawnedAtMap(MapEntry const* entry) const
     {
-        return mapEntry && (mapEntry == entry || !entry->Instanceable() && !mapEntry->Instanceable());
+        return mapEntry && (mapEntry == entry || (!entry->Instanceable() && !mapEntry->Instanceable()));
     }
 };
 
@@ -63,7 +62,7 @@ class Pool                                                  // for Pool of Pool 
 };
 
 typedef std::set<uint32> SpawnedPoolObjects;
-typedef std::map<uint32,uint32> SpawnedPoolPools;
+typedef std::map<uint32, uint32> SpawnedPoolPools;
 
 class SpawnedPoolData
 {
@@ -108,7 +107,7 @@ class PoolGroup
         bool CheckPool() const;
         void CheckEventLinkAndReport(int16 event_id, std::map<uint32, int16> const& creature2event, std::map<uint32, int16> const& go2event) const;
         PoolObject* RollOne(SpawnedPoolData& spawns, uint32 triggerFrom);
-        void DespawnObject(MapPersistentState& mapState, uint32 guid=0);
+        void DespawnObject(MapPersistentState& mapState, uint32 guid = 0);
         void Despawn1Object(MapPersistentState& mapState, uint32 guid);
         void SpawnObject(MapPersistentState& mapState, uint32 limit, uint32 triggerFrom, bool instantly);
         void SetExcludeObject(uint32 guid, bool state);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
+ * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,8 +19,7 @@
 #ifndef MANGOS_OBJECTREGISTRY_H
 #define MANGOS_OBJECTREGISTRY_H
 
-#include "Platform/Define.h"
-#include "Utilities/UnorderedMapSet.h"
+#include "Common.h"
 #include "Policies/Singleton.h"
 
 #include <string>
@@ -30,25 +29,25 @@
 /** ObjectRegistry holds all registry item of the same type
  */
 template<class T, class Key = std::string>
-class MANGOS_DLL_DECL ObjectRegistry
+class ObjectRegistry
 {
     public:
-        typedef std::map<Key, T *> RegistryMapType;
+        typedef std::map<Key, T*> RegistryMapType;
 
         /// Returns a registry item
         const T* GetRegistryItem(Key key) const
         {
             typename RegistryMapType::const_iterator iter = i_registeredObjects.find(key);
-            return( iter == i_registeredObjects.end() ? NULL : iter->second );
+            return (iter == i_registeredObjects.end() ? nullptr : iter->second);
         }
 
         /// Inserts a registry item
-        bool InsertItem(T *obj, Key key, bool replace = false)
+        bool InsertItem(T* obj, Key key, bool replace = false)
         {
             typename RegistryMapType::iterator iter = i_registeredObjects.find(key);
-            if( iter != i_registeredObjects.end() )
+            if (iter != i_registeredObjects.end())
             {
-                if( !replace )
+                if (!replace)
                     return false;
                 delete iter->second;
                 i_registeredObjects.erase(iter);
@@ -62,9 +61,9 @@ class MANGOS_DLL_DECL ObjectRegistry
         void RemoveItem(Key key, bool delete_object = true)
         {
             typename RegistryMapType::iterator iter = i_registeredObjects.find(key);
-            if( iter != i_registeredObjects.end() )
+            if (iter != i_registeredObjects.end())
             {
-                if( delete_object )
+                if (delete_object)
                     delete iter->second;
                 i_registeredObjects.erase(iter);
             }
@@ -77,17 +76,17 @@ class MANGOS_DLL_DECL ObjectRegistry
         }
 
         /// Inefficiently return a vector of registered items
-        unsigned int GetRegisteredItems(std::vector<Key> &l) const
+        unsigned int GetRegisteredItems(std::vector<Key>& l) const
         {
             unsigned int sz = l.size();
             l.resize(sz + i_registeredObjects.size());
-            for(typename RegistryMapType::const_iterator iter = i_registeredObjects.begin(); iter != i_registeredObjects.end(); ++iter)
+            for (typename RegistryMapType::const_iterator iter = i_registeredObjects.begin(); iter != i_registeredObjects.end(); ++iter)
                 l[sz++] = iter->first;
             return i_registeredObjects.size();
         }
 
         /// Return the map of registered items
-        RegistryMapType const &GetRegisteredItems() const
+        RegistryMapType const& GetRegisteredItems() const
         {
             return i_registeredObjects;
         }
@@ -100,7 +99,7 @@ class MANGOS_DLL_DECL ObjectRegistry
         ObjectRegistry() {}
         ~ObjectRegistry()
         {
-            for(typename RegistryMapType::iterator iter=i_registeredObjects.begin(); iter != i_registeredObjects.end(); ++iter)
+            for (typename RegistryMapType::iterator iter = i_registeredObjects.begin(); iter != i_registeredObjects.end(); ++iter)
                 delete iter->second;
             i_registeredObjects.clear();
         }
